@@ -1,0 +1,11 @@
+*.Rob
+MilkScale.cydsn/CortexM0
+Bootloader.cydsn/CortexM0
+Bootloader.cydsn/codegentemp
+MilkScale.cydsn/codegentemp
+MilkScale.cydsn/Generated_Source
+Bootloader.cydsn/Generated_Source
+*.cycdx
+*.rpt
+*.svd
+*.html
