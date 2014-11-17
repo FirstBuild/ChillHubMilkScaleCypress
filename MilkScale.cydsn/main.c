@@ -32,8 +32,8 @@ uint16_t doorCounts = 0;
 #define DIFF_THRESHOLD 1200  // 2%
 
 uint8_t doorWasOpen = FALSE;
-uint16_t LO_MEAS[3] = { 0 };
-uint16_t HI_MEAS[3] = { 0 };
+uint16_t LO_MEAS[3] = { 0, 0, 0 };
+uint16_t HI_MEAS[3] = { 2048, 2048, 2048 };
 
 // This is the EEPROM storage for the calibration values.
 typedef struct T_CalValues {
@@ -43,7 +43,7 @@ typedef struct T_CalValues {
 static const T_CalValues calValues =
 {
   {0,0,0},
-  {0,0,0}
+  {2048,2048,2048}
 };
 
 /* 
