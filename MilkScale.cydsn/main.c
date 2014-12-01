@@ -111,6 +111,8 @@ static void hardwareSetup(void) {
 }
 
 void deviceAnnounce() {
+  DebugUart_UartPutString("Registering with the chillhub.\r\n");
+  
   // register the name (type) of this device with the chillhub
   ChillHub.setup("milkscale", 9, &uartInterface);
 

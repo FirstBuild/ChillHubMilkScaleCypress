@@ -19,7 +19,9 @@
 static unsigned char recvBuf[64] = { 0 };
 static uint8_t bufIndex;
 
-static chCbTableType* callbackTable = NULL;
+#define MAX_CALLBACKS (10)
+#define NO_CALLBACK (0xff)
+static chCbTableType callbackTable[MAX_CALLBACKS];
 
 // Message handling stuff
 static uint8_t payloadLen;
@@ -31,6 +33,8 @@ static uint8_t dataType;
  */
 static void storeCallbackEntry(unsigned char id, unsigned char typ, void(*fcn)());
 static chillhubCallbackFunction callbackLookup(unsigned char sym, unsigned char typ);
+static uint8_t getIndexOfCallback(unsigned char sym, unsigned char typ);
+static uint8_t getUnusedIndexFromCallbackTable(void);
 static void callbackRemove(unsigned char sym, unsigned char typ);
 static void setName(char* name, unsigned char strLength);
 static void setup(char* name, unsigned char strLength, const T_Serial* serial);
@@ -124,7 +128,14 @@ void printI16(int16_t val) {
 }
 
 static void setup(char* name, unsigned char strLength, const T_Serial* serial) {
+  uint8_t i;
   Serial = serial;
+  
+  // Initialize callback array
+  for(i=0; i<MAX_CALLBACKS; i++) {
+    callbackTable[i].inUse = FALSE;
+  }
+  
   // register device type with chillhub mailman
   DebugUart_UartPutString("Initializing chillhub interface...\r\n");
   setName(name, strLength);
@@ -184,7 +195,7 @@ static void sendI16Msg(unsigned char msgType, signed int payload) {
 static void sendBooleanMsg(unsigned char msgType, unsigned char payload) {
   uint8_t buf[4];
 
-  DebugUart_UartPutString("Sendig boolean message.\r\n");
+  DebugUart_UartPutString("Sending boolean message.\r\n");
 
   buf[0] = 3;
   buf[1] = msgType;
@@ -312,21 +323,28 @@ static void processChillhubMessagePayload(void) {
     if (callback) {
       DebugUart_UartPutString("Found a callback for this message, calling...\r\n");
       if ((dataType == unsigned8DataType) || (dataType == booleanDataType)) {
+        DebugUart_UartPutString("Data type is U8 or bool.\r\n");
         ((chCbFcnU8)callback)(recvBuf[bufIndex++]);
       }
       else if (dataType == unsigned16DataType) {
         unsigned int payload = 0;
+        DebugUart_UartPutString("Data type is a U16.\r\n");
         payload |= (recvBuf[bufIndex++] << 8);
         payload |= recvBuf[bufIndex++];
         ((chCbFcnU16)callback)(payload);
       }
       else if (dataType == unsigned32DataType) {
         unsigned long payload = 0;
+        DebugUart_UartPutString("Data type is a U32.\r\n");
         for (char j = 0; j < 4; j++) {
           payload = payload << 8;
           payload |= recvBuf[bufIndex++];
         }
         ((chCbFcnU32)callback)(payload);
+      } else {
+        DebugUart_UartPutString("Don't know what this data type is: ");
+        printU8(dataType);
+        DebugUart_UartPutString("\r\n");
       }
     } else {
       DebugUart_UartPutString("No callback for this message found.\r\n");
@@ -405,40 +423,74 @@ static void loop(void) {
 }
 
 static void storeCallbackEntry(unsigned char sym, unsigned char typ, chillhubCallbackFunction fcn) {
-  chCbTableType* newEntry = (chCbTableType *)malloc(sizeof(chCbTableType));
-  newEntry->symbol = sym;
-  newEntry->type = typ;
-  newEntry->callback = fcn;
-  newEntry->rest = callbackTable;
-  callbackTable = newEntry;
-}
+  uint8_t index = getIndexOfCallback(sym, typ);
+  
+  // Does this exist already?
+  if (index == NO_CALLBACK) {
+    // not found, store 
+    DebugUart_UartPutString("Storing a new callback entry.\r\n");
+    index = getUnusedIndexFromCallbackTable();
+  } else {
+    DebugUart_UartPutString("Revising an existing callback entry.\r\n");
+  }
+  
+  if (index != NO_CALLBACK) {
+    callbackTable[index].callback = fcn;
+    callbackTable[index].inUse = TRUE;
+    callbackTable[index].symbol = sym;
+    callbackTable[index].type = typ;
+    DebugUart_UartPutString("Callback added.\r\n");      
+  } else {
+    DebugUart_UartPutString("No room left in callback table.\r\n");
+  }
+} 
 
 static chillhubCallbackFunction callbackLookup(unsigned char sym, unsigned char typ) {
-  chCbTableType* entry = callbackTable;
-  while (entry) {
-    if ((entry->type == typ) && (entry->symbol == sym))
-      return (entry->callback);
-    else
-      entry = entry->rest;
+  uint8_t index;
+  
+  index = getIndexOfCallback(sym, typ);
+  if (index != NO_CALLBACK) {
+    return callbackTable[index].callback;
+  } else {
+    return NULL;
   }
-  return NULL;
+}
+
+static uint8_t getIndexOfCallback(unsigned char sym, unsigned char typ) {
+  uint8_t index = NO_CALLBACK;
+  uint8_t i;
+  
+  for(i=0; i<MAX_CALLBACKS; i++) {
+    if (callbackTable[i].inUse == TRUE) {
+      if ((callbackTable[i].type == typ) && (callbackTable[i].symbol == sym)) {
+        index = i;
+        break;
+      }
+    }
+  }
+  
+  return index;
+}
+
+static uint8_t getUnusedIndexFromCallbackTable(void) {
+  uint8_t index = NO_CALLBACK;
+  uint8_t i;
+  
+  for(i=0; i<MAX_CALLBACKS; i++) {
+    if (callbackTable[i].inUse == FALSE) {
+      index = i;
+      break;
+    }
+  }
+  
+  return index;
 }
 
 static void callbackRemove(unsigned char sym, unsigned char typ) {
-  chCbTableType* prev = callbackTable;
-  chCbTableType* entry;
-  if (prev)
-    entry = prev->rest;
-
-  while (entry) {
-    if ((entry->type == typ) && (entry->symbol == sym)) {
-      prev->rest = entry->rest;
-      free(entry);
-    }
-    else {
-      prev = entry;
-      entry = entry->rest;
-    }
+  uint8_t index = getIndexOfCallback(sym, typ);
+  
+  if (index != NO_CALLBACK) {
+    callbackTable[index].inUse = FALSE;
   }
 }
 

@@ -1,7 +1,15 @@
 #include <cytypes.h>
+#include <stdint.h>
 
-    #ifndef CHILLHUB_H
+#ifndef CHILLHUB_H
 #define CHILLHUB_H
+  
+#ifndef FALSE
+  #define FALSE 0
+#endif
+#ifndef TRUE
+  #define TRUE !FALSE
+#endif
 
 #define CHILLHUB_CB_TYPE_FRIDGE 0
 #define CHILLHUB_CB_TYPE_CRON 1
@@ -15,10 +23,10 @@ void printI16(int16_t val);
 void printU8(uint8_t val);
 
 typedef struct chCbTableType {
-  chillhubCallbackFunction callback;
   unsigned char symbol;
   unsigned char type;  // 0: fridge data, 1: cron alarm, 2: time, 3: cloud
-  struct chCbTableType* rest;
+  uint8_t inUse;
+  chillhubCallbackFunction callback;
 } chCbTableType;
 
 typedef struct T_Serial {
