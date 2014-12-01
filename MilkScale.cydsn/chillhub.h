@@ -76,7 +76,8 @@ enum ChillHubMsgTypes {
   alarmNotifyMsgType = 0x05,
   getTimeMsgType = 0x06,
   timeResponseMsgType = 0x07,
-  // 0x08-0x0F Reserved for Future Use
+  deviceIdRequestType = 0x08,
+  // 0x09-0x0F Reserved for Future Use
   filterAlertMsgType = 0x10,
   waterFilterCalendarTimerMsgType = 0x11,
   waterFilterCalendarPercentUsedMsgType = 0x12,
