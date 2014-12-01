@@ -1,3 +1,4 @@
+[![Stories in Ready](https://badge.waffle.io/firstbuild/chillhubmilkscalecypress.png?label=ready&title=Ready)](https://waffle.io/firstbuild/chillhubmilkscalecypress)
 ChillHubMilkScaleCypress
 ========================
 
