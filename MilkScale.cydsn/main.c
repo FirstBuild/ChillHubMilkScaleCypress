@@ -102,23 +102,26 @@ static void hardwareSetup(void) {
   ADC_Start();
   ADC_StartConvert();  
   SampleStartDelay_Start();
+  
+  // load FSR limits here
+  for (int j = 0; j < 3; j++) {
+    LO_MEAS[j] = calValues.LO_MEAS[j];
+    HI_MEAS[j] = calValues.HI_MEAS[j];
+  }
 }
 
 void deviceAnnounce() {
   // register the name (type) of this device with the chillhub
   ChillHub.setup("milkscale", 9, &uartInterface);
 
-  // load FSR limits here
-  for (int j = 0; j < 3; j++) {
-    LO_MEAS[j] = calValues.LO_MEAS[j];
-    HI_MEAS[j] = calValues.HI_MEAS[j];
-  }
-  
   // subscribe to door messages to trigger 
   ChillHub.subscribe(doorStatusMsgType, (chillhubCallbackFunction)readMilkWeight);
   
   // setup factory calibration listener
   ChillHub.addCloudListener(0x94, (chillhubCallbackFunction)factoryCalibrate);
+  
+  // add a listener for device ID request type
+  ChillHub.subscribe(deviceIdRequestType, (chillhubCallbackFunction)deviceAnnounce);
 }
 
 static void checkForReset(void) {
