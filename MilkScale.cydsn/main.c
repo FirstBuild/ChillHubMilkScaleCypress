@@ -104,7 +104,7 @@ static void hardwareSetup(void) {
   SampleStartDelay_Start();
 }
 
-void setup() {
+void deviceAnnounce() {
   // register the name (type) of this device with the chillhub
   ChillHub.setup("milkscale", 9, &uartInterface);
 
@@ -192,7 +192,7 @@ int main()
 {
   hardwareSetup();
 
-	setup();
+	deviceAnnounce();
 	
 	DebugUart_UartPutString("\r\nMain program running...\r\n");
 	
