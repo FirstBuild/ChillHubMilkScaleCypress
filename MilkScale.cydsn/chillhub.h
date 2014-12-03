@@ -45,7 +45,7 @@ typedef void (*chCbFcnTime)(unsigned char[4]);
  * Function prototypes
  */
 typedef struct chInterface {  
-  void (*setup)(char* name, unsigned char strLength, const T_Serial* serial);
+  void (*setup)(const char* name, const char *UUID, const T_Serial* serial);
   void (*subscribe)(unsigned char type, chillhubCallbackFunction cb);
   void (*unsubscribe)(unsigned char type);
   void (*setAlarm)(unsigned char ID, char* cronString, unsigned char strLength, chillhubCallbackFunction cb);
@@ -85,6 +85,9 @@ enum ChillHubMsgTypes {
   getTimeMsgType = 0x06,
   timeResponseMsgType = 0x07,
   deviceIdRequestType = 0x08,
+  registerResource = 0x09,
+  updateResource = 0x0a,
+  resourceUpdated = 0x0b,
   // 0x09-0x0F Reserved for Future Use
   filterAlertMsgType = 0x10,
   waterFilterCalendarTimerMsgType = 0x11,

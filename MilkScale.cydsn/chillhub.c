@@ -7,7 +7,7 @@
 #include "Uart.h"
 #include "Uart_SPI_UART.h"
 #include "DebugUart.h"
-//#include "pt.h"
+#include "string.h"
 
 #ifndef NULL
 #define NULL 0
@@ -36,8 +36,8 @@ static chillhubCallbackFunction callbackLookup(unsigned char sym, unsigned char 
 static uint8_t getIndexOfCallback(unsigned char sym, unsigned char typ);
 static uint8_t getUnusedIndexFromCallbackTable(void);
 static void callbackRemove(unsigned char sym, unsigned char typ);
-static void setName(char* name, unsigned char strLength);
-static void setup(char* name, unsigned char strLength, const T_Serial* serial);
+static void setName(const char* name, const char *UUID);
+static void setup(const char* name, const char *UUID, const T_Serial* serial);
 static void subscribe(unsigned char type, chillhubCallbackFunction cb);
 static void unsubscribe(unsigned char type);
 static void setAlarm(unsigned char ID, char* cronString, unsigned char strLength, chillhubCallbackFunction cb);
@@ -127,7 +127,7 @@ void printI16(int16_t val) {
   }
 }
 
-static void setup(char* name, unsigned char strLength, const T_Serial* serial) {
+static void setup(const char* name, const char *UUID, const T_Serial* serial) {
   uint8_t i;
   Serial = serial;
   
@@ -138,7 +138,7 @@ static void setup(char* name, unsigned char strLength, const T_Serial* serial) {
   
   // register device type with chillhub mailman
   DebugUart_UartPutString("Initializing chillhub interface...\r\n");
-  setName(name, strLength);
+  setName(name, UUID);
   DebugUart_UartPutString("...initialized.\r\n");
 }
 
@@ -204,17 +204,28 @@ static void sendBooleanMsg(unsigned char msgType, unsigned char payload) {
   Serial->write(buf, 4);
 }
 
-static void setName(char* name, unsigned char strLength) {
-  uint8_t buf[4];
+static void setName(const char* name, const char *UUID) {
+  uint8_t buf[5];
+  uint8_t nameLen = strlen(name);
+  uint8_t uuidLen = strlen(UUID);
   
-  DebugUart_UartPutString("Setting name.\r\n");
-
-  buf[0] = strLength + 3; // length of the following message
+  // send header info
+  buf[0] = nameLen + uuidLen + 6; // length of the following message
   buf[1] = deviceIdMsgType;
-  buf[2] = stringDataType;
-  buf[3] = strLength; // string length
-  Serial->write(buf,4); // send all that so that we can use Serial.print for the string
+  buf[2] = arrayDataType;
+  buf[3] = 2; // number of elements
+  buf[4] = stringDataType; // data type of elements
+  Serial->write(buf,5); // send all that so that we can use Serial.print for the string
+
+  // send device type
+  buf[0] = nameLen;
+  Serial->write(buf,1);
   Serial->print(name);
+  
+  // send UUID
+  buf[0] = uuidLen;
+  Serial->write(buf,1);
+  Serial->print(UUID);  
 }
 
 static void subscribe(unsigned char type, chillhubCallbackFunction callback) {

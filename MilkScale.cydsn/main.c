@@ -11,6 +11,7 @@
  * ========================================
 */
 #include <project.h>
+#include <string.h>
 #include "time_base.h"
 #include "LED.h"
 #include "Uart.h"
@@ -45,6 +46,10 @@ static const T_CalValues calValues =
   {0,0,0},
   {2048,2048,2048}
 };
+
+// This needs to come from the EEPROM
+const char UUID[] = "1ea8fdb9-2418-440b-a67b-fa16210f0c9e";
+const char deviceType[] = "milkyWeighs";
 
 /* 
  * we find the full weight on each sensor by solving the statics problem:
@@ -111,10 +116,10 @@ static void hardwareSetup(void) {
 }
 
 void deviceAnnounce() {
-  DebugUart_UartPutString("Registering with the chillhub.\r\n");
+  DebugUart_UartPutString("\r\nRegistering with the chillhub.\r\n");
   
   // register the name (type) of this device with the chillhub
-  ChillHub.setup("milkscale", 9, &uartInterface);
+  ChillHub.setup(deviceType, UUID, &uartInterface);
 
   // subscribe to door messages to trigger 
   ChillHub.subscribe(doorStatusMsgType, (chillhubCallbackFunction)readMilkWeight);
@@ -163,10 +168,31 @@ static void checkForReset(void) {
   }
 }
 
+static void sendWeight(uint16_t weight) {
+  uint8_t buf[6];
+  const char name[] = "weight";
+  uint8_t nameLen = strlen(name);
+  
+  DebugUart_UartPutString("Sending weight.\r\n");
+
+  buf[0] = 7+nameLen;
+  buf[1] = 0x91;
+  buf[2] = jsonDataType;
+  buf[3] = 1; // # of fields
+  buf[4] = nameLen;
+  uartInterface.write(buf, 5);
+  uartInterface.print(name);
+  buf[0] = unsigned16DataType;
+  buf[1] = (uint8_t)((weight >> 8) & 0x00ff);
+  buf[2] = (uint8_t)(weight & 0x00ff);
+  uartInterface.write(buf, 3);
+}
+
 void periodicPrintOfWeight(void) {
   uint32 ticksCopy;
   static uint32 oldTicks=0;
   uint16_t sensorReadings[3];
+  uint16_t weight;
 	
 	CyGlobalIntDisable;
 	ticksCopy = ticks;
@@ -188,8 +214,10 @@ void periodicPrintOfWeight(void) {
     DebugUart_UartPutString("\r\n");
     
     DebugUart_UartPutString("Milk weight: ");
-    printU16(calculateMilkWeight(sensorReadings));
+    weight = calculateMilkWeight(sensorReadings);
+    printU16(weight);
     DebugUart_UartPutString("\r\n");
+    sendWeight(weight);
   }
 }
 
