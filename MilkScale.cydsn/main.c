@@ -96,6 +96,10 @@ enum {
   WeightC_Channel,
 };
 
+typedef enum cloudResorceId {
+  weightID = 0x91
+} T_cloudResourceId;
+
 static void hardwareSetup(void) {
   isr_timer_StartEx(isr_timer_interrupt);
   time_base_Start();
@@ -129,6 +133,8 @@ void deviceAnnounce() {
   
   // add a listener for device ID request type
   ChillHub.subscribe(deviceIdRequestType, (chillhubCallbackFunction)deviceAnnounce);
+  
+  ChillHub.createCloudResourceU16("weight", weightID, FALSE, 0);
 }
 
 static void checkForReset(void) {
@@ -224,6 +230,8 @@ void periodicPrintOfWeight(void) {
 int main()
 {
   hardwareSetup();
+  
+  CyGlobalIntEnable; /* Uncomment this line to enable global interrupts. */
 
 	deviceAnnounce();
 	
@@ -231,13 +239,12 @@ int main()
 	
 	LED_Write(0);
 	
-	CyGlobalIntEnable; /* Uncomment this line to enable global interrupts. */
 	for(;;)
 	{
 		ChillHub.loop();
     
     checkForReset();
-    periodicPrintOfWeight();
+    //periodicPrintOfWeight();
   }
 }
 

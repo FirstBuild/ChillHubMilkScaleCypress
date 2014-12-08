@@ -13,6 +13,13 @@
 #define NULL 0
 #endif
 
+#ifndef MSB_OF_U16
+  #define MSB_OF_U16(v) ((v>>8)&0x00ff) 
+#endif
+#ifndef LSB_OF_U16
+  #define LSB_OF_U16(v) (v&0x00ff) 
+#endif
+
 /*
  * Private Stuff
  */
@@ -44,6 +51,7 @@ static void setAlarm(unsigned char ID, char* cronString, unsigned char strLength
 static void unsetAlarm(unsigned char ID);
 static void getTime(chillhubCallbackFunction cb);
 static void addCloudListener(unsigned char msgType, chillhubCallbackFunction cb);
+static void createCloudResourceU16(const char *name, uint8_t resID, uint8_t canUpdate, uint16_t initVal);
 static void sendU8Msg(unsigned char msgType, unsigned char payload);
 static void sendU16Msg(unsigned char msgType, unsigned int payload);
 static void sendI8Msg(unsigned char msgType, signed char payload);
@@ -60,6 +68,7 @@ const chInterface ChillHub = {
    .unsetAlarm = unsetAlarm,
    .getTime = getTime,
    .addCloudListener = addCloudListener,
+   .createCloudResourceU16 = createCloudResourceU16,
    .sendU8Msg = sendU8Msg,
    .sendU16Msg = sendU16Msg,
    .sendI8Msg = sendI8Msg,
@@ -280,6 +289,60 @@ static void addCloudListener(unsigned char ID, chillhubCallbackFunction cb) {
   DebugUart_UartPutString("Adding cloud listener.\r\n");
   
   storeCallbackEntry(ID, CHILLHUB_CB_TYPE_CLOUD, cb);
+}
+
+static void sendJsonKey(const char *key) {
+  uint8_t buf = strlen(key);
+  Serial->write(&buf, 1);
+  Serial->print(key);
+}
+
+static void sendJsonString(const char *s) {
+  uint8_t buf[2];
+  buf[0] = stringDataType;
+  buf[1] = strlen(s);
+  Serial->write(buf, 2);
+  Serial->print(s);
+}
+
+static void sendJsonU8(uint8_t v) {
+  uint8_t buf[2];
+  buf[0] = unsigned8DataType;
+  buf[1] = v;
+  Serial->write(buf, 2);
+}
+
+static void sendJsonU16(uint16_t v) {
+  uint8_t buf[3];
+  buf[0] = unsigned16DataType;
+  buf[1] = MSB_OF_U16(v);
+  buf[2] = LSB_OF_U16(v);
+  Serial->write(buf, 3);
+}
+
+static void createCloudResourceU16(const char *name, uint8_t resID, uint8_t canUpdate, uint16_t initVal) {
+  uint8_t buf[5];
+  uint8_t index=0;
+  
+  // set up message header and send
+  index = 0;
+  buf[index++] = 37 + strlen(name); // length
+  buf[index++] = registerResourceType; // message type
+  buf[index++] = jsonDataType; // message data type
+  buf[index++] = 4; // JSON fields
+  Serial->write(buf, index);
+
+  sendJsonKey("name");
+  sendJsonString(name);
+  
+  sendJsonKey("resID");
+  sendJsonU8(resID);
+
+  sendJsonKey("canUp");
+  sendJsonU8(canUpdate);
+  
+  sendJsonKey("initVal");
+  sendJsonU16(initVal);
 }
 
 // the communication states
