@@ -97,7 +97,8 @@ enum {
 };
 
 typedef enum cloudResorceId {
-  weightID = 0x91
+  weightID = 0x91,
+  calibrateID = 0x94
 } T_cloudResourceId;
 
 static void hardwareSetup(void) {
@@ -128,12 +129,14 @@ void deviceAnnounce() {
   // subscribe to door messages to trigger 
   ChillHub.subscribe(doorStatusMsgType, (chillhubCallbackFunction)readMilkWeight);
   
-  // setup factory calibration listener
-  ChillHub.addCloudListener(0x94, (chillhubCallbackFunction)factoryCalibrate);
+  // setup factory calibration listener and create cloud resource
+  ChillHub.addCloudListener(calibrateID, (chillhubCallbackFunction)factoryCalibrate);
+  ChillHub.createCloudResourceU16("calibrate", calibrateID, 1, 0);
   
   // add a listener for device ID request type
   ChillHub.subscribe(deviceIdRequestType, (chillhubCallbackFunction)deviceAnnounce);
   
+  // Create cloud resource for weight
   ChillHub.createCloudResourceU16("weight", weightID, FALSE, 0);
 }
 
@@ -182,7 +185,7 @@ static void sendWeight(uint16_t weight) {
   DebugUart_UartPutString("Sending weight.\r\n");
 
   buf[0] = 7+nameLen;
-  buf[1] = 0x91;
+  buf[1] = weightID;
   buf[2] = jsonDataType;
   buf[3] = 1; // # of fields
   buf[4] = nameLen;
@@ -199,6 +202,7 @@ void periodicPrintOfWeight(void) {
   static uint32 oldTicks=0;
   uint16_t sensorReadings[3];
   uint16_t weight;
+  
 	
 	CyGlobalIntDisable;
 	ticksCopy = ticks;
@@ -223,6 +227,7 @@ void periodicPrintOfWeight(void) {
     weight = calculateMilkWeight(sensorReadings);
     printU16(weight);
     DebugUart_UartPutString("\r\n");
+    
     sendWeight(weight);
   }
 }
@@ -244,7 +249,7 @@ int main()
 		ChillHub.loop();
     
     checkForReset();
-    //periodicPrintOfWeight();
+    periodicPrintOfWeight();
   }
 }
 
@@ -342,6 +347,13 @@ static void storeLimits(void) {
 
 static void factoryCalibrate(uint8_t full) {
   uint16_t sensorReadings[3];
+  
+  DebugUart_UartPutString("Got a factory calibrate message.\r\n");
+  DebugUart_UartPutString("Value is: ");
+  printU8(full);
+  DebugUart_UartPutString("\r\n");
+  return;
+  
   readFromSensors(sensorReadings);
   
   if (full) {
