@@ -178,23 +178,9 @@ static void checkForReset(void) {
 }
 
 static void sendWeight(uint16_t weight) {
-  uint8_t buf[6];
-  const char name[] = "weight";
-  uint8_t nameLen = strlen(name);
+  DebugUart_UartPutString("Updating weight.\r\n");
   
-  DebugUart_UartPutString("Sending weight.\r\n");
-
-  buf[0] = 7+nameLen;
-  buf[1] = weightID;
-  buf[2] = jsonDataType;
-  buf[3] = 1; // # of fields
-  buf[4] = nameLen;
-  uartInterface.write(buf, 5);
-  uartInterface.print(name);
-  buf[0] = unsigned16DataType;
-  buf[1] = (uint8_t)((weight >> 8) & 0x00ff);
-  buf[2] = (uint8_t)(weight & 0x00ff);
-  uartInterface.write(buf, 3);
+  ChillHub.updateCloudResourceU16(weightID, weight);
 }
 
 void periodicPrintOfWeight(void) {

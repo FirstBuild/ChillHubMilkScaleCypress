@@ -53,6 +53,7 @@ typedef struct chInterface {
   void (*getTime)(chillhubCallbackFunction cb);
   void (*addCloudListener)(unsigned char msgType, chillhubCallbackFunction cb);
   void (*createCloudResourceU16)(const char *name, uint8_t resId, uint8_t canUpdate, uint16_t initVal);
+  void (*updateCloudResourceU16)(uint8_t resID, uint16_t val);
   void (*sendU8Msg)(unsigned char msgType, unsigned char payload);
   void (*sendU16Msg)(unsigned char msgType, unsigned int payload);
   void (*sendI8Msg)(unsigned char msgType, signed char payload);

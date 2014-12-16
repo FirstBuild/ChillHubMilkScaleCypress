@@ -52,6 +52,7 @@ static void unsetAlarm(unsigned char ID);
 static void getTime(chillhubCallbackFunction cb);
 static void addCloudListener(unsigned char msgType, chillhubCallbackFunction cb);
 static void createCloudResourceU16(const char *name, uint8_t resID, uint8_t canUpdate, uint16_t initVal);
+static void updateCloudResourceU16(uint8_t resID, uint16_t val);
 static void sendU8Msg(unsigned char msgType, unsigned char payload);
 static void sendU16Msg(unsigned char msgType, unsigned int payload);
 static void sendI8Msg(unsigned char msgType, signed char payload);
@@ -69,6 +70,7 @@ const chInterface ChillHub = {
    .getTime = getTime,
    .addCloudListener = addCloudListener,
    .createCloudResourceU16 = createCloudResourceU16,
+   .updateCloudResourceU16 = updateCloudResourceU16,
    .sendU8Msg = sendU8Msg,
    .sendU16Msg = sendU16Msg,
    .sendI8Msg = sendI8Msg,
@@ -79,9 +81,25 @@ const chInterface ChillHub = {
 
 static const T_Serial *Serial;
 
+enum eMsgByteIndices {
+  lenIndex = 0,
+  msgTypeIndex = 1,
+  dataTypeIndex = 2
+};
+
+const char resIdKey[] = "resID";
+const char valKey[] = "val";
+
+const uint8_t sizeOfU16JsonField = 3;
+const uint8_t sizeOfU8JsonField = 2;
+
 /*
  * Functions
  */
+
+uint8_t sizeOfJsonKey(const char *key) {
+  return strlen(key) + 1;  
+}
 
 void printU8(uint8_t val) {
   uint8_t digits[3];
@@ -335,7 +353,7 @@ static void createCloudResourceU16(const char *name, uint8_t resID, uint8_t canU
   sendJsonKey("name");
   sendJsonString(name);
   
-  sendJsonKey("resID");
+  sendJsonKey(resIdKey);
   sendJsonU8(resID);
 
   sendJsonKey("canUp");
@@ -343,6 +361,25 @@ static void createCloudResourceU16(const char *name, uint8_t resID, uint8_t canU
   
   sendJsonKey("initVal");
   sendJsonU16(initVal);
+}
+
+static void updateCloudResourceU16(uint8_t resID, uint16_t val) {
+  uint8_t buf[5];
+  uint8_t index = 0;
+
+  buf[index++] = 3 + 
+    sizeOfJsonKey(resIdKey) + sizeOfU8JsonField +
+    sizeOfJsonKey(valKey) + sizeOfU16JsonField;
+    
+  buf[index++] = updateResourceType;
+  buf[index++] = jsonDataType;
+  buf[index++] = 2; // number of json fields
+  Serial->write(buf, index);
+  
+  sendJsonKey(resIdKey);
+  sendJsonU8(resID);
+  sendJsonKey(valKey);
+  sendJsonU16(val);
 }
 
 // the communication states
