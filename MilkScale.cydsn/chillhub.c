@@ -20,6 +20,9 @@
   #define LSB_OF_U16(v) (v&0x00ff) 
 #endif
 
+#define STX 0xff
+#define ESC 0xfe
+
 /*
  * Private Stuff
  */
@@ -59,6 +62,9 @@ static void sendI8Msg(unsigned char msgType, signed char payload);
 static void sendI16Msg(unsigned char msgType, signed int payload);
 static void sendBooleanMsg(unsigned char msgType, unsigned char payload);
 static void loop(void);
+static void sendPacket(uint8_t *buf, uint8_t len);
+static uint8_t isControlChar(uint8_t c);
+static void outputChar(uint8_t c);
 
 // The singleton ChillHub instance
 const chInterface ChillHub = {
@@ -178,7 +184,8 @@ static void sendU8Msg(unsigned char msgType, unsigned char payload) {
   buf[1] = msgType;
   buf[2] = unsigned8DataType;
   buf[3] = payload;
-  Serial->write(buf, 4);
+  //Serial->write(buf, 4);
+  sendPacket(buf, 4);
 }
 
 static void sendI8Msg(unsigned char msgType, signed char payload) {
@@ -190,7 +197,8 @@ static void sendI8Msg(unsigned char msgType, signed char payload) {
   buf[1] = msgType;
   buf[2] = signed8DataType;
   buf[3] = payload;
-  Serial->write(buf, 4);
+  //Serial->write(buf, 4);
+  sendPacket(buf, 4);
 }
 
 static void sendU16Msg(unsigned char msgType, unsigned int payload) {
@@ -203,7 +211,8 @@ static void sendU16Msg(unsigned char msgType, unsigned int payload) {
   buf[2] = unsigned16DataType;
   buf[3] = (payload >> 8) & 0xff;
   buf[4] = payload & 0xff;
-  Serial->write(buf, 5);
+  //Serial->write(buf, 5);
+  sendPacket(buf, 5);
 }
 
 static void sendI16Msg(unsigned char msgType, signed int payload) {
@@ -216,7 +225,8 @@ static void sendI16Msg(unsigned char msgType, signed int payload) {
   buf[2] = signed16DataType;
   buf[3] = (payload >> 8) & 0xff;
   buf[4] = payload & 0xff;
-  Serial->write(buf, 5);
+  //Serial->write(buf, 5);
+  sendPacket(buf, 5);
 }
 
 static void sendBooleanMsg(unsigned char msgType, unsigned char payload) {
@@ -228,31 +238,42 @@ static void sendBooleanMsg(unsigned char msgType, unsigned char payload) {
   buf[1] = msgType;
   buf[2] = booleanDataType;
   buf[3] = payload;
-  Serial->write(buf, 4);
+  //Serial->write(buf, 4);
+  sendPacket(buf, 4);
 }
 
 static void setName(const char* name, const char *UUID) {
-  uint8_t buf[5];
+  uint8_t buf[256];
   uint8_t nameLen = strlen(name);
   uint8_t uuidLen = strlen(UUID);
+  uint8_t index=0;
+  
+  if ((nameLen + uuidLen) >= sizeof(buf)) {
+    DebugUart_UartPutString("Can't set name.");
+  }
   
   // send header info
-  buf[0] = nameLen + uuidLen + 6; // length of the following message
-  buf[1] = deviceIdMsgType;
-  buf[2] = arrayDataType;
-  buf[3] = 2; // number of elements
-  buf[4] = stringDataType; // data type of elements
-  Serial->write(buf,5); // send all that so that we can use Serial.print for the string
+  buf[index++] = nameLen + uuidLen + 6; // length of the following message
+  buf[index++] = deviceIdMsgType;
+  buf[index++] = arrayDataType;
+  buf[index++] = 2; // number of elements
+  buf[index++] = stringDataType; // data type of elements
+  //Serial->write(buf,5); // send all that so that we can use Serial.print for the string
 
   // send device type
-  buf[0] = nameLen;
-  Serial->write(buf,1);
-  Serial->print(name);
+  buf[index++] = nameLen;
+  strcat((char *)&buf[index], name);
+  index += nameLen;
+  //Serial->write(buf,1);
+  //Serial->print(name);
   
   // send UUID
-  buf[0] = uuidLen;
-  Serial->write(buf,1);
-  Serial->print(UUID);  
+  buf[index++] = uuidLen;
+  strcat((char *)&buf[index], UUID);
+  index += uuidLen;
+  //Serial->write(buf,1);
+  //Serial->print(UUID);  
+  sendPacket(buf, index);
 }
 
 static void subscribe(unsigned char type, chillhubCallbackFunction callback) {
@@ -605,3 +626,47 @@ static void callbackRemove(unsigned char sym, unsigned char typ) {
   }
 }
 
+static uint8_t isControlChar(uint8_t c) {
+  switch(c) {
+    case STX:
+      return 1;
+    case ESC:
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+static void outputChar(uint8_t c) {
+  uint8_t buf[2];
+  uint8_t index=0;
+
+  if (isControlChar(c)) {
+    buf[index++] = ESC;
+  }
+  buf[index++] = c;
+  
+  Serial->write(buf, index);
+}
+     
+static void sendPacket(uint8_t *pBuf, uint8_t len){
+  uint16_t checksum = 42;
+  uint8_t buf[1];
+  uint8_t i;
+  
+  // send STX
+  buf[0] = STX;
+  Serial->write(buf, 1);
+  // send packet length
+  outputChar(len);
+  
+  // send packet
+  for(i=0; i<len; i++) {
+    checksum += pBuf[i];
+    outputChar(pBuf[i]);
+  }
+  
+  // send CS
+  outputChar(MSB_OF_U16(checksum));
+  outputChar(LSB_OF_U16(checksum));
+}

@@ -126,6 +126,7 @@ void deviceAnnounce() {
   // register the name (type) of this device with the chillhub
   ChillHub.setup(deviceType, UUID, &uartInterface);
 
+  #if 0
   // subscribe to door messages to trigger 
   ChillHub.subscribe(doorStatusMsgType, (chillhubCallbackFunction)readMilkWeight);
   
@@ -138,6 +139,7 @@ void deviceAnnounce() {
   
   // Create cloud resource for weight
   ChillHub.createCloudResourceU16("weight", weightID, FALSE, 0);
+  #endif
 }
 
 static void checkForReset(void) {
@@ -189,7 +191,6 @@ void periodicPrintOfWeight(void) {
   uint16_t sensorReadings[3];
   uint16_t weight;
   
-	
 	CyGlobalIntDisable;
 	ticksCopy = ticks;
 	CyGlobalIntEnable;
@@ -197,6 +198,10 @@ void periodicPrintOfWeight(void) {
 	if ((ticksCopy-oldTicks) >= (1000 * 6))
 	{
     oldTicks = ticksCopy;
+    
+  deviceAnnounce();
+  return;
+	
     readFromSensors(sensorReadings);
     
     DebugUart_UartPutString("Sensor A: ");
