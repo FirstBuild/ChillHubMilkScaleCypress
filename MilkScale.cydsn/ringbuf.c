@@ -45,6 +45,7 @@ uint8_t RingBuffer_Init(T_RingBufferCB *pControlBlock, uint8_t *pBuf, uint8_t si
    pControlBlock->pBuf = pBuf;
    pControlBlock->full = RING_BUFFER_NOT_FULL;
    pControlBlock->empty = RING_BUFFER_IS_EMPTY;
+   pControlBlock->bytesUsed = 0;
 
    return RING_BUFFER_INIT_SUCCESS;
 }
@@ -58,6 +59,7 @@ uint8_t RingBuffer_Write(T_RingBufferCB *pControlBlock, uint8_t val) {
    }
 
    pControlBlock->pBuf[pControlBlock->tail++] = val;
+   pControlBlock->bytesUsed++;
    pControlBlock->empty = RING_BUFFER_NOT_EMPTY;
    if (pControlBlock->tail >= pControlBlock->size) {
       pControlBlock->tail = 0;
@@ -80,6 +82,7 @@ uint8_t RingBuffer_Read(T_RingBufferCB *pControlBlock) {
    }
 
    retVal = pControlBlock->pBuf[pControlBlock->head++];
+   pControlBlock->bytesUsed--;
    pControlBlock->full = RING_BUFFER_NOT_FULL;
    if (pControlBlock->head >= pControlBlock->size) {
       pControlBlock->head = 0;
@@ -105,6 +108,47 @@ uint8_t RingBuffer_IsFull(T_RingBufferCB *pControlBlock) {
    }
 
    return pControlBlock->full;
+}
+
+uint8_t RingBuffer_Peek(T_RingBufferCB *pControlBlock, uint8_t pos) {
+   if (pControlBlock == NULL) {
+      return 0xff;
+   }
+   if (pos >= pControlBlock->size) {
+      return 0xff;
+   }
+   if (pControlBlock->empty == RING_BUFFER_IS_EMPTY) {
+      return 0xff;
+   }
+   if (pos >= pControlBlock->bytesUsed) {
+      return 0xff;
+   }
+
+   pos += pControlBlock->head;
+   if (pos >= pControlBlock->size) {
+      pos -= (pControlBlock->size - 1);
+   }
+
+   return pControlBlock->pBuf[pos];
+}
+
+
+uint8_t RingBuffer_BytesUsed(T_RingBufferCB *pControlBlock) {
+   (void) pControlBlock;
+
+   if (pControlBlock == NULL) {
+      return 0xff;
+   }
+
+   return pControlBlock->bytesUsed;
+}
+
+uint8_t RingBuffer_BytesAvailable(T_RingBufferCB *pControlBlock) {
+   if (pControlBlock == NULL) {
+      return 0xff;
+   }
+   
+   return pControlBlock->size - pControlBlock->bytesUsed;
 }
 
 

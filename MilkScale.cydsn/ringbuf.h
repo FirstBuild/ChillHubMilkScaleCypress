@@ -31,6 +31,7 @@ typedef struct T_RingBufferCB {
    uint8_t head;
    uint8_t tail;
    uint8_t size;
+   uint8_t bytesUsed;
    uint8_t empty;
    uint8_t full;
    uint8_t *pBuf;
@@ -51,4 +52,8 @@ uint8_t RingBuffer_Write(T_RingBufferCB *pControlBlock, uint8_t val);
 uint8_t RingBuffer_Read(T_RingBufferCB *pControlBlock);
 uint8_t RingBuffer_IsEmpty(T_RingBufferCB *pControlBlock);
 uint8_t RingBuffer_IsFull(T_RingBufferCB *pControlBlock);
+uint8_t RingBuffer_Peek(T_RingBufferCB *pControlBlock, uint8_t pos);
+uint8_t RingBuffer_BytesUsed(T_RingBufferCB *pControlBlock);
+uint8_t RingBuffer_BytesAvailable(T_RingBufferCB *pControlBlock);
+
 
