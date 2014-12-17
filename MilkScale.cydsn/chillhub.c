@@ -4,10 +4,11 @@
 #include <cytypes.h>
 #include <stdlib.h>
 #include <cylib.h>
+#include <string.h>
 #include "Uart.h"
 #include "Uart_SPI_UART.h"
 #include "DebugUart.h"
-#include "string.h"
+#include "ringbuf.h"
 
 #ifndef NULL
 #define NULL 0
@@ -27,7 +28,9 @@
  * Private Stuff
  */
 static unsigned char recvBuf[64] = { 0 };
+static unsigned char serialBuf[64] = { 0 };
 static uint8_t bufIndex;
+static T_RingBufferCB serialBufCb;
 
 #define MAX_CALLBACKS (10)
 #define NO_CALLBACK (0xff)
@@ -164,6 +167,8 @@ static void setup(const char* name, const char *UUID, const T_Serial* serial) {
   uint8_t i;
   Serial = serial;
   
+  RingBuffer_Init(&serialBufCb, &serialBuf[0], sizeof(serialBuf));
+  
   // Initialize callback array
   for(i=0; i<MAX_CALLBACKS; i++) {
     callbackTable[i].inUse = FALSE;
@@ -258,21 +263,16 @@ static void setName(const char* name, const char *UUID) {
   buf[index++] = arrayDataType;
   buf[index++] = 2; // number of elements
   buf[index++] = stringDataType; // data type of elements
-  //Serial->write(buf,5); // send all that so that we can use Serial.print for the string
 
   // send device type
   buf[index++] = nameLen;
   strcat((char *)&buf[index], name);
   index += nameLen;
-  //Serial->write(buf,1);
-  //Serial->print(name);
   
   // send UUID
   buf[index++] = uuidLen;
   strcat((char *)&buf[index], UUID);
   index += uuidLen;
-  //Serial->write(buf,1);
-  //Serial->print(UUID);  
   sendPacket(buf, index);
 }
 
@@ -405,9 +405,9 @@ static void updateCloudResourceU16(uint8_t resID, uint16_t val) {
 
 // the communication states
 enum ECommState {
-  State_WaitingForFirstByte,
-  State_WaitingForMessageType,
-  State_WaitingForPayload,
+  State_WaitingForStx,
+  State_WaitingForLength,
+  State_WaitingForMessage,
   State_Invalid = 0xff
 };
 
@@ -484,37 +484,34 @@ static void processChillhubMessagePayload(void) {
   }
 }
 
-// state handlers
-static uint8_t StateHandler_WaitingForFirstByte(void) {
+static void ReadFromSerialPort(void) {
   if (Serial->available() > 0) {
     // Get the payload length.  It is one less than the message length.
-    payloadLen = Serial->read() - 1;
-    DebugUart_UartPutString("Got the payload length: ");
-    printU8(payloadLen);
-    DebugUart_UartPutString("\r\n");
-    // Do a size check. Message must fit in the buffer.
-    // If it doesn't, we just keep scanning.
-    if (payloadLen <= sizeof(recvBuf)) {
-      return State_WaitingForMessageType;
+    if (RingBuffer_IsFull(&serialBufCb) == RING_BUFFER_IS_FULL) {
+      RingBuffer_Read(&serialBufCb); 
+    }
+    RingBuffer_Write(&serialBufCb, Serial->read());
+  }
+}
+
+// state handlers
+static uint8_t StateHandler_WaitingForStx(void) {
+  ReadFromSerialPort();
+  
+  // process bytes in the buffer
+  while(RingBuffer_IsEmpty(&serialBufCb) == RING_BUFFER_NOT_EMPTY) {
+    if (RingBuffer_Read(&serialBufCb) == STX) {
+      DebugUart_UartPutString("Got STX.");
+      return State_WaitingForLength;
     }
   }
   
-  return State_WaitingForFirstByte;
+  return State_WaitingForStx;
 }
 
-static uint8_t StateHandler_WaitingForMessageType(void) {
-  if (Serial->available() > 0) {
-    // get the message type
-    msgType = Serial->read();
-    DebugUart_UartPutString("Got the message type: ");
-    printU8(msgType);
-    DebugUart_UartPutString("\r\n");
-    bufIndex = 0;
-    return State_WaitingForPayload;
-  }
-  
-  return State_WaitingForMessageType;  
+static uint8_t StateHandler_WaitingForLength(void) {
 }
+  
 
 static uint8_t StateHandler_WaitingForPayload(void) {
   uint8_t b;
@@ -538,8 +535,8 @@ static uint8_t StateHandler_WaitingForPayload(void) {
 typedef uint8_t (*StateHandler_fp)(void);
 // Array of state handlers
 static const StateHandler_fp StateHandlers[] = {
-  StateHandler_WaitingForFirstByte,
-  StateHandler_WaitingForMessageType,
+  StateHandler_WaitingForStx,
+  StateHandler_WaitingForLength,
   StateHandler_WaitingForPayload,
   NULL
 };
