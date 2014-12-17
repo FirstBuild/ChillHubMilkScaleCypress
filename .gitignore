@@ -9,3 +9,4 @@ Bootloader.cydsn/Generated_Source
 *.rpt
 *.svd
 *.html
+default.vim
