@@ -24,3 +24,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#include <stdint.h>
+
+typedef struct T_RingBufferCB {
+   uint8_t head;
+   uint8_t tail;
+   uint8_t size;
+   uint8_t empty;
+   uint8_t full;
+   uint8_t *pBuf;
+} T_RingBufferCB; 
+
+#define RING_BUFFER_INIT_FAILURE 0
+#define RING_BUFFER_INIT_SUCCESS 1
+#define RING_BUFFER_IS_FULL 1
+#define RING_BUFFER_NOT_FULL 0
+#define RING_BUFFER_IS_EMPTY 1
+#define RING_BUFFER_NOT_EMPTY 0
+#define RING_BUFFER_ADD_FAILURE 0
+#define RING_BUFFER_ADD_SUCCESS 1
+#define RING_BUFFER_BAD_CONTROL_BLOCK_POINTER 2
+
+uint8_t RingBuffer_Init(T_RingBufferCB *pControlBlock, uint8_t *pBuf, uint8_t size);
+uint8_t RingBuffer_Write(T_RingBufferCB *pControlBlock, uint8_t val);
+uint8_t RingBuffer_Read(T_RingBufferCB *pControlBlock);
+uint8_t RingBuffer_IsEmpty(T_RingBufferCB *pControlBlock);
+uint8_t RingBuffer_IsFull(T_RingBufferCB *pControlBlock);
+

@@ -26,5 +26,85 @@
  */
 
 #include "ringbuf.h"
+#include <stdlib.h>
+
+uint8_t RingBuffer_Init(T_RingBufferCB *pControlBlock, uint8_t *pBuf, uint8_t size) {
+   if (pBuf == NULL) {
+      return RING_BUFFER_INIT_FAILURE;
+   }
+   if (size == 0) {
+      return RING_BUFFER_INIT_FAILURE;
+   }
+   if (pControlBlock == NULL) {
+      return RING_BUFFER_INIT_FAILURE;
+   }
+
+   pControlBlock->head = 0;
+   pControlBlock->tail = 0;
+   pControlBlock->size = size;
+   pControlBlock->pBuf = pBuf;
+   pControlBlock->full = RING_BUFFER_NOT_FULL;
+   pControlBlock->empty = RING_BUFFER_IS_EMPTY;
+
+   return RING_BUFFER_INIT_SUCCESS;
+}
+
+uint8_t RingBuffer_Write(T_RingBufferCB *pControlBlock, uint8_t val) {
+   if (pControlBlock == NULL) {
+      return RING_BUFFER_ADD_FAILURE;
+   }
+   if (pControlBlock->full == RING_BUFFER_IS_FULL) {
+      return RING_BUFFER_ADD_FAILURE;
+   }
+
+   pControlBlock->pBuf[pControlBlock->tail++] = val;
+   pControlBlock->empty = RING_BUFFER_NOT_EMPTY;
+   if (pControlBlock->tail >= pControlBlock->size) {
+      pControlBlock->tail = 0;
+   }
+   if (pControlBlock->head == pControlBlock->tail) {
+      pControlBlock->full = RING_BUFFER_IS_FULL;
+   }
+
+   return RING_BUFFER_ADD_SUCCESS;
+}
+
+uint8_t RingBuffer_Read(T_RingBufferCB *pControlBlock) {
+   uint8_t retVal = 0xff;
+
+   if (pControlBlock == NULL) {
+      return retVal;
+   }
+   if (pControlBlock->empty == RING_BUFFER_IS_EMPTY) {
+      return retVal;
+   }
+
+   retVal = pControlBlock->pBuf[pControlBlock->head++];
+   pControlBlock->full = RING_BUFFER_NOT_FULL;
+   if (pControlBlock->head >= pControlBlock->size) {
+      pControlBlock->head = 0;
+   }
+   if (pControlBlock->head == pControlBlock->tail) {
+      pControlBlock->empty = RING_BUFFER_IS_EMPTY;
+   }
+
+   return retVal;
+}
+
+uint8_t RingBuffer_IsEmpty(T_RingBufferCB *pControlBlock) {
+   if (pControlBlock == NULL) {
+      return RING_BUFFER_BAD_CONTROL_BLOCK_POINTER;
+   }
+
+   return pControlBlock->empty;
+}
+
+uint8_t RingBuffer_IsFull(T_RingBufferCB *pControlBlock) {
+   if (pControlBlock == NULL) {
+      return RING_BUFFER_BAD_CONTROL_BLOCK_POINTER;
+   }
+
+   return pControlBlock->full;
+}
 
 
