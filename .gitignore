@@ -9,3 +9,9 @@ Bootloader.cydsn/Generated_Source
 *.rpt
 *.svd
 *.html
+default.vim
+MilkScale.cydsn/test/*.d
+MilkScale.cydsn/test/*.o
+MilkScale.cydsn/test/lib/
+MilkScale.cydsn/test/objs/
+MilkScale.cydsn/test/RingBufferTests_tests

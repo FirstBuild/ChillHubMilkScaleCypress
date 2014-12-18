@@ -52,6 +52,8 @@ typedef struct chInterface {
   void (*unsetAlarm)(unsigned char ID);
   void (*getTime)(chillhubCallbackFunction cb);
   void (*addCloudListener)(unsigned char msgType, chillhubCallbackFunction cb);
+  void (*createCloudResourceU16)(const char *name, uint8_t resId, uint8_t canUpdate, uint16_t initVal);
+  void (*updateCloudResourceU16)(uint8_t resID, uint16_t val);
   void (*sendU8Msg)(unsigned char msgType, unsigned char payload);
   void (*sendU16Msg)(unsigned char msgType, unsigned int payload);
   void (*sendI8Msg)(unsigned char msgType, signed char payload);
@@ -85,9 +87,9 @@ enum ChillHubMsgTypes {
   getTimeMsgType = 0x06,
   timeResponseMsgType = 0x07,
   deviceIdRequestType = 0x08,
-  registerResource = 0x09,
-  updateResource = 0x0a,
-  resourceUpdated = 0x0b,
+  registerResourceType = 0x09,
+  updateResourceType = 0x0a,
+  resourceUpdatedType = 0x0b,
   // 0x09-0x0F Reserved for Future Use
   filterAlertMsgType = 0x10,
   waterFilterCalendarTimerMsgType = 0x11,
