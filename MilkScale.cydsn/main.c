@@ -47,6 +47,11 @@ static const T_CalValues calValues =
   {2048,2048,2048}
 };
 
+enum E_CalibrationSelection {
+  calibrateEmpty = 1,
+  calibrateFull = 2
+};
+
 // This needs to come from the EEPROM
 const char UUID[] = "1ea8fdb9-2418-440b-a67b-fa16210f0c9e";
 const char deviceType[] = "milkyWeighs";
@@ -61,7 +66,8 @@ const char deviceType[] = "milkyWeighs";
  * This results in full W1 is 31.51%, W2 is 20.85%, and W3 is 47.64%
  * If we arbitrarily say we want the full weight to be 60000 (near limit of U16), then:
  */
-uint16_t W_MAX[3] = {18908, 12507, 28585};
+//uint16_t W_MAX[3] = {18908, 12507, 28585};
+uint16_t W_MAX[3] = {15016, 30000, 14984};
 
 // Internal function prototypes
 static void readMilkWeight(unsigned char doorStatus);
@@ -81,8 +87,6 @@ CY_ISR(isr_timer_interrupt) {
     ticks++;
 }
 
-// Comm interface for the chillhub "object".
-// This is kinda stupid.  Do something different here.
 static const T_Serial uartInterface = {
     .write = Uart_SpiUartPutArray,
     .available = Uart_SpiUartGetRxBufferSize,
@@ -126,7 +130,9 @@ void deviceAnnounce() {
   // register the name (type) of this device with the chillhub
   ChillHub.setup(deviceType, UUID, &uartInterface);
 
-  #if 0
+  // add a listener for device ID request type
+  ChillHub.subscribe(deviceIdRequestType, (chillhubCallbackFunction)deviceAnnounce);
+  
   // subscribe to door messages to trigger 
   ChillHub.subscribe(doorStatusMsgType, (chillhubCallbackFunction)readMilkWeight);
   
@@ -134,12 +140,10 @@ void deviceAnnounce() {
   ChillHub.addCloudListener(calibrateID, (chillhubCallbackFunction)factoryCalibrate);
   ChillHub.createCloudResourceU16("calibrate", calibrateID, 1, 0);
   
-  // add a listener for device ID request type
-  ChillHub.subscribe(deviceIdRequestType, (chillhubCallbackFunction)deviceAnnounce);
-  
   // Create cloud resource for weight
   ChillHub.createCloudResourceU16("weight", weightID, FALSE, 0);
-  #endif
+  
+  DebugUart_UartPutString("Registration complete.\r\n");
 }
 
 static void checkForReset(void) {
@@ -182,7 +186,7 @@ static void checkForReset(void) {
 static void sendWeight(uint16_t weight) {
   DebugUart_UartPutString("Updating weight.\r\n");
   
-  ChillHub.updateCloudResourceU16(weightID, weight);
+  ChillHub.updateCloudResourceU16(weightID, weight/600);
 }
 
 void periodicPrintOfWeight(void) {
@@ -199,9 +203,6 @@ void periodicPrintOfWeight(void) {
 	{
     oldTicks = ticksCopy;
     
-  deviceAnnounce();
-  return;
-	
     readFromSensors(sensorReadings);
     
     DebugUart_UartPutString("Sensor A: ");
@@ -216,7 +217,7 @@ void periodicPrintOfWeight(void) {
     
     DebugUart_UartPutString("Milk weight: ");
     weight = calculateMilkWeight(sensorReadings);
-    printU16(weight);
+    printU16(weight/600);
     DebugUart_UartPutString("\r\n");
     
     sendWeight(weight);
@@ -226,6 +227,11 @@ void periodicPrintOfWeight(void) {
 int main()
 {
   hardwareSetup();
+  
+  DebugUart_UartPutString("\r\n");
+  DebugUart_UartPutString("************************\r\n");
+  DebugUart_UartPutString("* Milky Weigh Starting *\r\n");
+  DebugUart_UartPutString("************************\r\n");
   
   CyGlobalIntEnable; /* Uncomment this line to enable global interrupts. */
 
@@ -281,7 +287,7 @@ static void readMilkWeight(unsigned char doorStatus) {
   
   if (doorWasOpen && !doorNowOpen) {
     
-    ChillHub.sendU16Msg(0x51, getMilkWeight()/600);
+    sendWeight(getMilkWeight());
   }
   doorWasOpen = doorNowOpen;
 }
@@ -308,23 +314,6 @@ static void readFromSensors(uint16_t *paMeas) {
   paMeas[2] = (uint16_t)meas;  
 }
 
-#ifdef KILL
-// Not sure what is going on here.
-// Can we just average over a bunch of readings or do
-// we need to wait until the sinusoid is at peak before
-// reading?
-static uint16_t doSensorRead(unsigned char pinNumber) {
-    uint16_t newReading = 0;
-    uint16_t anaVal;
-    // oversample to get the max amplitude
-    for (int j = 0; j < 5000; j++) {
-      anaVal = analogRead(pinNumber);
-      newReading = max(newReading,anaVal);
-    }
-    return newReading;
-}
-#endif
-
 static void storeLimits(void) {
   T_CalValues limits;
   for (int j = 0; j < 3; j++) {
@@ -336,27 +325,41 @@ static void storeLimits(void) {
     sizeof(T_CalValues));
 }
 
-static void factoryCalibrate(uint8_t full) {
+static void factoryCalibrate(uint8_t which) {
   uint16_t sensorReadings[3];
+  uint16_t *pMeas;
   
   DebugUart_UartPutString("Got a factory calibrate message.\r\n");
   DebugUart_UartPutString("Value is: ");
-  printU8(full);
+  printU8(which);
   DebugUart_UartPutString("\r\n");
-  return;
+  
+  switch(which) {
+    case calibrateEmpty:
+      // calibrate low end
+      pMeas = &LO_MEAS[0];
+      break;
+     
+    case calibrateFull:
+      // calibrate full scale
+      pMeas = &HI_MEAS[0];
+      break;
+    
+    default:
+      // do nothing
+      return;
+  }
   
   readFromSensors(sensorReadings);
-  
-  if (full) {
-    for (int j = 0; j < 3; j++)
-      HI_MEAS[j] = sensorReadings[j];
-  }
-  else {
-    for (int j = 0; j < 3; j++)
-      LO_MEAS[j] = sensorReadings[j];
+    
+  for (int j = 0; j < 3; j++) {
+    *pMeas++ = sensorReadings[j];
   }
   
   storeLimits();
+  
+  ChillHub.updateCloudResourceU16(calibrateID, 0);
+
 }
 
 
