@@ -21,6 +21,7 @@ typedef void (*chillhubCallbackFunction)();
 void printU16(uint16_t val);
 void printI16(int16_t val);
 void printU8(uint8_t val);
+void printU32(uint32_t val);
 
 typedef struct chCbTableType {
   unsigned char symbol;

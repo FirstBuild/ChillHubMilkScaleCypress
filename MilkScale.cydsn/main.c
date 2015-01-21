@@ -33,13 +33,13 @@ uint16_t doorCounts = 0;
 #define DIFF_THRESHOLD 1200  // 2%
 
 uint8_t doorWasOpen = FALSE;
-uint16_t LO_MEAS[3] = { 0, 0, 0 };
-uint16_t HI_MEAS[3] = { 2048, 2048, 2048 };
+uint32_t LO_MEAS[3] = { 0, 0, 0 };
+uint32_t HI_MEAS[3] = { 2048, 2048, 2048 };
 
 // This is the EEPROM storage for the calibration values.
 typedef struct T_CalValues {
-  uint16_t LO_MEAS[3];
-  uint16_t HI_MEAS[3];
+  uint32_t LO_MEAS[3];
+  uint32_t HI_MEAS[3];
 } T_CalValues;
 static const T_CalValues calValues =
 {
@@ -67,16 +67,16 @@ const char deviceType[] = "milkyWeighs";
  * If we arbitrarily say we want the full weight to be 60000 (near limit of U16), then:
  */
 //uint16_t W_MAX[3] = {18908, 12507, 28585};
-uint16_t W_MAX[3] = {15016, 30000, 14984};
+uint32_t W_MAX[3] = {15016, 30000, 14984};
 
 // Internal function prototypes
 static void readMilkWeight(unsigned char doorStatus);
-static void applyFsrCurve(uint16_t *pScaledVal, uint16_t *pRawValue);
-static void readFromSensors(uint16_t *paMeas);
+static void applyFsrCurve(uint32_t *pScaledVal, uint32_t *pRawValue);
+static void readFromSensors(uint32_t *paMeas);
 static void storeLimits(void);
 static void factoryCalibrate(uint8_t full);
-static uint16_t getMilkWeight(void);
-static uint16 calculateMilkWeight(uint16_t *pSensorReadings);
+static uint32_t getMilkWeight(void);
+static uint32_t calculateMilkWeight(uint32_t *pSensorReadings);
 static void checkForReset(void);
 //static uint16_t doSensorRead(unsigned char pinNumber);
 
@@ -124,7 +124,7 @@ static void hardwareSetup(void) {
   }
 }
 
-void deviceAnnounce() {
+void deviceAnnounce() { 
   DebugUart_UartPutString("\r\nRegistering with the chillhub.\r\n");
   
   // register the name (type) of this device with the chillhub
@@ -144,6 +144,19 @@ void deviceAnnounce() {
   ChillHub.createCloudResourceU16("weight", weightID, FALSE, 0);
   
   DebugUart_UartPutString("Registration complete.\r\n");
+
+  for (uint8_t j = 0; j < 3; j++) {
+    DebugUart_UartPutString("Low ");
+    printU8(j);
+    DebugUart_UartPutString(": ");
+    printU32(LO_MEAS[j]);
+    DebugUart_UartPutString("\r\n");
+    DebugUart_UartPutString("Hi  ");
+    printU8(j);
+    DebugUart_UartPutString(": ");
+    printU32(HI_MEAS[j]);
+    DebugUart_UartPutString("\r\n");
+  }
 }
 
 static void checkForReset(void) {
@@ -183,41 +196,48 @@ static void checkForReset(void) {
   }
 }
 
-static void sendWeight(uint16_t weight) {
-  DebugUart_UartPutString("Updating weight.\r\n");
+static void sendWeight(uint32_t weight) {
+  uint16_t percent = (uint16_t)(weight/600);
   
-  ChillHub.updateCloudResourceU16(weightID, weight/600);
+  if (percent > 100) {
+    percent = 100;
+  }
+  DebugUart_UartPutString("Updating weight: ");
+  printU16(percent);
+  DebugUart_UartPutString("\r\n");
+  
+  ChillHub.updateCloudResourceU16(weightID, percent);
 }
 
 void periodicPrintOfWeight(void) {
   uint32 ticksCopy;
   static uint32 oldTicks=0;
-  uint16_t sensorReadings[3];
-  uint16_t weight;
+  uint32_t sensorReadings[3];
+  uint32_t weight;
   
 	CyGlobalIntDisable;
 	ticksCopy = ticks;
 	CyGlobalIntEnable;
 		
-	if ((ticksCopy-oldTicks) >= (1000 * 6))
+	if ((ticksCopy-oldTicks) >= (500))
 	{
     oldTicks = ticksCopy;
     
     readFromSensors(sensorReadings);
     
     DebugUart_UartPutString("Sensor A: ");
-    printU16(sensorReadings[0]);
+    printU16((uint16_t)sensorReadings[0]);
     DebugUart_UartPutString("\r\n");
     DebugUart_UartPutString("Sensor B: ");
-    printU16(sensorReadings[1]);
+    printU16((uint16_t)sensorReadings[1]);
     DebugUart_UartPutString("\r\n");
     DebugUart_UartPutString("Sensor C: ");
-    printU16(sensorReadings[2]);
+    printU16((uint16_t)sensorReadings[2]);
     DebugUart_UartPutString("\r\n");
     
     DebugUart_UartPutString("Milk weight: ");
     weight = calculateMilkWeight(sensorReadings);
-    printU16(weight/600);
+    printU32(weight);
     DebugUart_UartPutString("\r\n");
     
     sendWeight(weight);
@@ -250,23 +270,23 @@ int main()
   }
 }
 
-static uint16 calculateMilkWeight(uint16_t *pSensorReadings) {
-  uint16_t sensorWeights[3];
+static uint32 calculateMilkWeight(uint32_t *pSensorReadings) {
+  uint32_t sensorWeights[3];
 
   applyFsrCurve(sensorWeights, pSensorReadings);
   
-  uint16_t weight = sensorWeights[0] + 
+  uint32_t weight = sensorWeights[0] + 
     sensorWeights[1] + 
     sensorWeights[2];
     
   return weight;
 }
 
-static uint16_t getMilkWeight(void) {
-  uint16_t sensorReadings[3];
+static uint32_t getMilkWeight(void) {
+  uint32_t sensorReadings[3];
 
   readFromSensors(sensorReadings);
-  uint16_t weight = calculateMilkWeight(sensorReadings);
+  uint32_t weight = calculateMilkWeight(sensorReadings);
 
   if (weight >= (FULL_WEIGHT - DIFF_THRESHOLD)) {
     for (int j = 0; j < 3; j++)
@@ -292,26 +312,26 @@ static void readMilkWeight(unsigned char doorStatus) {
   doorWasOpen = doorNowOpen;
 }
 
-static void applyFsrCurve(uint16_t *pScaledVal, uint16_t *pRawValue) {
+static void applyFsrCurve(uint32_t *pScaledVal, uint32_t *pRawValue) {
   for (int j = 0; j < 3; j++) {
-    pScaledVal[j] = (pRawValue[j] - LO_MEAS[j]) * 1.0 * W_MAX[j] / (HI_MEAS[j] - LO_MEAS[j]);
+    pScaledVal[j] = (pRawValue[j] - LO_MEAS[j]) * W_MAX[j] / (HI_MEAS[j] - LO_MEAS[j]);
   }
 }
 
-static void readFromSensors(uint16_t *paMeas) {
+static void readFromSensors(uint32_t *paMeas) {
   int16_t meas;
   
   meas = ADC_GetResult16(WeightA_Channel);
   if (meas < 0) {meas = 0;}
-  paMeas[0] = (uint16_t)meas;
+  paMeas[0] = (uint32_t)((int32_t)meas);
   
   meas = ADC_GetResult16(WeightB_Channel);
   if (meas < 0) {meas = 0;}
-  paMeas[1] = (uint16_t)meas;
+  paMeas[1] = (uint32_t)((int32_t)meas);
   
   meas = ADC_GetResult16(WeightC_Channel);
   if (meas < 0) {meas = 0;}
-  paMeas[2] = (uint16_t)meas;  
+  paMeas[2] = (uint32_t)((int32_t)(uint16_t)meas);  
 }
 
 static void storeLimits(void) {
@@ -326,8 +346,8 @@ static void storeLimits(void) {
 }
 
 static void factoryCalibrate(uint8_t which) {
-  uint16_t sensorReadings[3];
-  uint16_t *pMeas;
+  uint32_t sensorReadings[3];
+  uint32_t *pMeas;
   
   DebugUart_UartPutString("Got a factory calibrate message.\r\n");
   DebugUart_UartPutString("Value is: ");
