@@ -41,19 +41,28 @@ typedef struct T_CalValues {
   uint32_t LO_MEAS[3];
   uint32_t HI_MEAS[3];
 } T_CalValues;
-static const T_CalValues calValues =
-{
-  {0,0,0},
-  {2048,2048,2048}
-};
+
+#define MAX_UUID_LENGTH 48
+
+typedef struct T_EEPROM {
+  T_CalValues calValues;
+  char UUID[MAX_UUID_LENGTH+1];
+} T_EEPROM;
+
+static const T_EEPROM eeprom __attribute__ ((section (".EEPROMDATA"))) = {
+  {
+    {0,0,0},
+    {2048,2048,2048}
+  },
+  "1ea8fdb9-2418-440b-a67b-fa16210f0c9e"
+} ;
 
 enum E_CalibrationSelection {
   calibrateEmpty = 1,
   calibrateFull = 2
 };
 
-// This needs to come from the EEPROM
-const char UUID[] = "1ea8fdb9-2418-440b-a67b-fa16210f0c9e";
+// This is the device type reported to the chill hub.
 const char deviceType[] = "milkyWeighs";
 
 /* 
@@ -105,6 +114,20 @@ typedef enum cloudResorceId {
   calibrateID = 0x94
 } T_cloudResourceId;
 
+void setDeviceUUID(char *pUUID) {
+  uint8_t len = (uint8_t)pUUID[0];
+  char *pStr = &pUUID[1];
+  
+  if (len <= MAX_UUID_LENGTH) {
+    // add null terminator
+    pStr[len] = 0;
+    EmNvMem_Write((const uint8_t *)pStr, (const uint8_t*)&eeprom.UUID, len+1);
+    DebugUart_UartPutString("New UUID written to device.\r\n");
+  } else {
+    DebugUart_UartPutString("Can't write UUID, it is too long.\r\n");
+  }
+}
+
 static void hardwareSetup(void) {
   isr_timer_StartEx(isr_timer_interrupt);
   time_base_Start();
@@ -119,16 +142,17 @@ static void hardwareSetup(void) {
   
   // load FSR limits here
   for (int j = 0; j < 3; j++) {
-    LO_MEAS[j] = calValues.LO_MEAS[j];
-    HI_MEAS[j] = calValues.HI_MEAS[j];
+    LO_MEAS[j] = eeprom.calValues.LO_MEAS[j];
+    HI_MEAS[j] = eeprom.calValues.HI_MEAS[j];
   }
+  
 }
 
 void deviceAnnounce() { 
   DebugUart_UartPutString("\r\nRegistering with the chillhub.\r\n");
   
   // register the name (type) of this device with the chillhub
-  ChillHub.setup(deviceType, UUID, &uartInterface);
+  ChillHub.setup(deviceType, eeprom.UUID, &uartInterface);
 
   // add a listener for device ID request type
   ChillHub.subscribe(deviceIdRequestType, (chillhubCallbackFunction)deviceAnnounce);
@@ -143,6 +167,9 @@ void deviceAnnounce() {
   // Create cloud resource for weight
   ChillHub.createCloudResourceU16("weight", weightID, FALSE, 0);
   
+  // add a listener for setting the UUID of the device
+  ChillHub.subscribe(setDeviceUUIDType, (chillhubCallbackFunction)setDeviceUUID);
+
   DebugUart_UartPutString("Registration complete.\r\n");
 
   for (uint8_t j = 0; j < 3; j++) {
@@ -341,7 +368,7 @@ static void storeLimits(void) {
     limits.HI_MEAS[j] = HI_MEAS[j];
   }
   
-  EmNvMem_Write((const uint8_t*)&limits, (const uint8_t*)&calValues, 
+  EmNvMem_Write((const uint8_t*)&limits, (const uint8_t*)&eeprom.calValues, 
     sizeof(T_CalValues));
 }
 

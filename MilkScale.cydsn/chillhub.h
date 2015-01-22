@@ -16,7 +16,7 @@
 #define CHILLHUB_CB_TYPE_TIME 2
 #define CHILLHUB_CB_TYPE_CLOUD 3
 
-typedef void (*chillhubCallbackFunction)();
+typedef void (*chillhubCallbackFunction)(uint32_t val);
 
 void printU16(uint16_t val);
 void printI16(int16_t val);
@@ -41,6 +41,7 @@ typedef void (*chCbFcnU8)(unsigned char);
 typedef void (*chCbFcnU16)(unsigned int);
 typedef void (*chCbFcnU32)(unsigned long);
 typedef void (*chCbFcnTime)(unsigned char[4]);
+typedef void (*chCbFcnStr)(char *pStr);
   
 /*
  * Function prototypes
@@ -91,7 +92,8 @@ enum ChillHubMsgTypes {
   registerResourceType = 0x09,
   updateResourceType = 0x0a,
   resourceUpdatedType = 0x0b,
-  // 0x09-0x0F Reserved for Future Use
+  setDeviceUUIDType = 0x0c,
+  // 0x0d-0x0F Reserved for Future Use
   filterAlertMsgType = 0x10,
   waterFilterCalendarTimerMsgType = 0x11,
   waterFilterCalendarPercentUsedMsgType = 0x12,

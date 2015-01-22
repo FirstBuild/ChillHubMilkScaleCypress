@@ -204,7 +204,7 @@ static void sendU8Msg(unsigned char msgType, unsigned char payload) {
   uint8_t buf[16];
   uint8_t index=0;
   
-  DebugUart_UartPutString("Sendig U8 message.\r\n");
+  DebugUart_UartPutString("Sending U8 message.\r\n");
 
   buf[index++] = 3;
   buf[index++] = msgType;
@@ -481,6 +481,39 @@ static void processChillhubMessagePayload(void) {
 
     if (callback) {
       DebugUart_UartPutString("Found a callback for this message, calling...\r\n");
+      switch(dataType) {
+        case stringDataType:
+          DebugUart_UartPutString("Data type is a string.\r\n");
+          ((chCbFcnStr)callback)((char *)&recvBuf[bufIndex]);
+          break;
+        case unsigned8DataType:
+        case booleanDataType:
+          ((chCbFcnU8)callback)(recvBuf[bufIndex++]);
+          break;
+        case unsigned16DataType: {
+          unsigned int payload = 0;
+          DebugUart_UartPutString("Data type is a U16.\r\n");
+          payload |= (recvBuf[bufIndex++] << 8);
+          payload |= recvBuf[bufIndex++];
+          ((chCbFcnU16)callback)(payload);
+          break;
+        }
+        case unsigned32DataType: {
+          unsigned long payload = 0;
+          DebugUart_UartPutString("Data type is a U32.\r\n");
+          for (char j = 0; j < 4; j++) {
+            payload = payload << 8;
+            payload |= recvBuf[bufIndex++];
+          }
+          ((chCbFcnU32)callback)(payload);          
+          break;
+        }
+        default:
+          DebugUart_UartPutString("Don't know what this data type is: ");
+          printU8(dataType);
+          DebugUart_UartPutString("\r\n");
+      }
+      #ifdef KILL
       if ((dataType == unsigned8DataType) || (dataType == booleanDataType)) {
         DebugUart_UartPutString("Data type is U8 or bool.\r\n");
         ((chCbFcnU8)callback)(recvBuf[bufIndex++]);
@@ -505,6 +538,7 @@ static void processChillhubMessagePayload(void) {
         printU8(dataType);
         DebugUart_UartPutString("\r\n");
       }
+      #endif
     } else {
       DebugUart_UartPutString("No callback for this message found.\r\n");
     }
