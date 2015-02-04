@@ -4,4 +4,4 @@ ChillHubMilkScaleCypress
 
 This is a port of the chill hub milk scale project to the Cypress PSoC 4 Prototyping kit.
 
-The scale communicates as an attachment to the chillhub.
+The scale communicates as an attachment to the [chillhub](https://github.com/FirstBuild/ChillHub).
