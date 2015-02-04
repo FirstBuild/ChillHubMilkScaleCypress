@@ -17,6 +17,7 @@
 #include "Uart.h"
 #include "chillhub.h"
 #include "DebugUart.h"
+#include "crc.h"
 
 uint32 ticks = 0;
 uint8_t buttonWasPressed = 0;
@@ -246,7 +247,7 @@ void periodicPrintOfWeight(void) {
 	ticksCopy = ticks;
 	CyGlobalIntEnable;
 		
-	if ((ticksCopy-oldTicks) >= (500))
+	if ((ticksCopy-oldTicks) >= (2000))
 	{
     oldTicks = ticksCopy;
     
@@ -271,6 +272,24 @@ void periodicPrintOfWeight(void) {
   }
 }
 
+void delayMS(uint32 waitTicks) 
+{
+  uint32 ticksCopy;
+  uint32 oldTicks=0;
+	
+	CyGlobalIntDisable;
+	ticksCopy = ticks;
+	CyGlobalIntEnable;
+  oldTicks = ticksCopy;
+		
+	while ((ticksCopy-oldTicks) <= waitTicks)
+	{
+  	CyGlobalIntDisable;
+  	ticksCopy = ticks;
+  	CyGlobalIntEnable;
+	}
+}
+
 int main()
 {
   hardwareSetup();
@@ -287,7 +306,7 @@ int main()
 	DebugUart_UartPutString("\r\nMain program running...\r\n");
 	
 	LED_Write(0);
-	
+  
 	for(;;)
 	{
 		ChillHub.loop();
