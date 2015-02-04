@@ -9,6 +9,7 @@
 #include "Uart_SPI_UART.h"
 #include "DebugUart.h"
 #include "ringbuf.h"
+#include "crc.h"
 
 #ifndef NULL
 #define NULL 0
@@ -273,8 +274,9 @@ static void setName(const char* name, const char *UUID) {
   uint8_t uuidLen = strlen(UUID);
   uint8_t index=0;
   
-  if ((nameLen + uuidLen) >= sizeof(buf)) {
+  if ((nameLen + uuidLen) >= (sizeof(buf)-20)) {
     DebugUart_UartPutString("Can't set name.");
+    return;
   }
   
   // send header info
@@ -558,23 +560,25 @@ static void ReadFromSerialPort(void) {
 
 static void CheckPacket(void) {
   uint8_t i;
-  uint16_t cs = 42;
-  uint16_t csSent = (recvBuf[bufIndex-2]<<8) + recvBuf[bufIndex-1];
+  uint16_t crc = crc_init();
+  uint16_t crcSent = (recvBuf[bufIndex-2]<<8) + recvBuf[bufIndex-1];
   bufIndex -= 2;
   
   for(i=0; i<bufIndex; i++) {
-    cs += recvBuf[i];
+    crc = crc_update(crc, &recvBuf[i], 1);
   }
   
-  if (cs == csSent) {
+  crc = crc_finalize(crc);
+  
+  if (crc == crcSent) {
     DebugUart_UartPutString("Checksum checks!\r\n");
     processChillhubMessagePayload();
   } else {
     DebugUart_UartPutString("Checksum FAILED!\r\n");
     DebugUart_UartPutString("Checksum received: ");
-    printU16(csSent);
+    printU16(crcSent);
     DebugUart_UartPutString("\r\nChecksum calc'd: ");
-    printU16(cs);
+    printU16(crc);
     DebugUart_UartPutString("\r\n");
   }
 }
@@ -767,7 +771,7 @@ static void outputChar(uint8_t c) {
 }
      
 static void sendPacket(uint8_t *pBuf, uint8_t len){
-  uint16_t checksum = 42;
+  uint16_t crc = crc_init();
   uint8_t buf[1];
   uint8_t i;
   
@@ -779,11 +783,11 @@ static void sendPacket(uint8_t *pBuf, uint8_t len){
   
   // send packet
   for(i=0; i<len; i++) {
-    checksum += pBuf[i];
+    crc = crc_update(crc, &pBuf[i], 1);
     outputChar(pBuf[i]);
   }
   
   // send CS
-  outputChar(MSB_OF_U16(checksum));
-  outputChar(LSB_OF_U16(checksum));
+  outputChar(MSB_OF_U16(crc));
+  outputChar(LSB_OF_U16(crc));
 }
