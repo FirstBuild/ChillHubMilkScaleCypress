@@ -53,7 +53,7 @@ typedef struct T_EEPROM {
 static const T_EEPROM eeprom __attribute__ ((section (".EEPROMDATA"))) = {
   {
     {0,0,0},
-    {2048,2048,2048}
+    {600,1500,600}
   },
   "1ea8fdb9-2418-440b-a67b-fa16210f0c9e"
 } ;
@@ -81,12 +81,12 @@ uint32_t W_MAX[3] = {15016, 30000, 14984};
 
 // Internal function prototypes
 static void readMilkWeight(unsigned char doorStatus);
-static void applyFsrCurve(uint32_t *pScaledVal, uint32_t *pRawValue);
-static void readFromSensors(uint32_t *paMeas);
+static void applyFsrCurve(int32_t *pScaledVal, int32_t *pRawValue);
+static void readFromSensors(int32_t *paMeas);
 static void storeLimits(void);
 static void factoryCalibrate(uint8_t full);
-static uint32_t getMilkWeight(void);
-static uint32_t calculateMilkWeight(uint32_t *pSensorReadings);
+static int32_t getMilkWeight(void);
+static int32_t calculateMilkWeight(int32_t *pSensorReadings);
 static void checkForReset(void);
 //static uint16_t doSensorRead(unsigned char pinNumber);
 
@@ -240,8 +240,8 @@ static void sendWeight(uint32_t weight) {
 void periodicPrintOfWeight(void) {
   uint32 ticksCopy;
   static uint32 oldTicks=0;
-  uint32_t sensorReadings[3];
-  uint32_t weight;
+  int32_t sensorReadings[3];
+  int32_t weight;
   
 	CyGlobalIntDisable;
 	ticksCopy = ticks;
@@ -316,23 +316,27 @@ int main()
   }
 }
 
-static uint32 calculateMilkWeight(uint32_t *pSensorReadings) {
-  uint32_t sensorWeights[3];
+static int32 calculateMilkWeight(int32_t *pSensorReadings) {
+  int32_t sensorWeights[3];
 
   applyFsrCurve(sensorWeights, pSensorReadings);
   
-  uint32_t weight = sensorWeights[0] + 
+  int32_t weight = sensorWeights[0] + 
     sensorWeights[1] + 
     sensorWeights[2];
+  
+  if (weight < 0) {
+      weight = 0;
+  }
     
   return weight;
 }
 
-static uint32_t getMilkWeight(void) {
-  uint32_t sensorReadings[3];
+static int32_t getMilkWeight(void) {
+  int32_t sensorReadings[3];
 
   readFromSensors(sensorReadings);
-  uint32_t weight = calculateMilkWeight(sensorReadings);
+  int32_t weight = calculateMilkWeight(sensorReadings);
 
   if (weight >= (FULL_WEIGHT - DIFF_THRESHOLD)) {
     for (int j = 0; j < 3; j++)
@@ -358,26 +362,30 @@ static void readMilkWeight(unsigned char doorStatus) {
   doorWasOpen = doorNowOpen;
 }
 
-static void applyFsrCurve(uint32_t *pScaledVal, uint32_t *pRawValue) {
+static void applyFsrCurve(int32_t *pScaledVal, int32_t *pRawValue) {
   for (int j = 0; j < 3; j++) {
-    pScaledVal[j] = (pRawValue[j] - LO_MEAS[j]) * W_MAX[j] / (HI_MEAS[j] - LO_MEAS[j]);
+    if (pRawValue[j] >= (int32_t)LO_MEAS[j]) {      
+      pScaledVal[j] = (pRawValue[j] - LO_MEAS[j]) * W_MAX[j] / (HI_MEAS[j] - LO_MEAS[j]);
+    } else {
+      pScaledVal[j] = 0;
+    }
   }
 }
 
-static void readFromSensors(uint32_t *paMeas) {
+static void readFromSensors(int32_t *paMeas) {
   int16_t meas;
   
   meas = ADC_GetResult16(WeightA_Channel);
   if (meas < 0) {meas = 0;}
-  paMeas[0] = (uint32_t)((int32_t)meas);
+  paMeas[0] = (int32_t)meas;
   
   meas = ADC_GetResult16(WeightB_Channel);
   if (meas < 0) {meas = 0;}
-  paMeas[1] = (uint32_t)((int32_t)meas);
+  paMeas[1] = (int32_t)meas;
   
   meas = ADC_GetResult16(WeightC_Channel);
   if (meas < 0) {meas = 0;}
-  paMeas[2] = (uint32_t)((int32_t)(uint16_t)meas);  
+  paMeas[2] = (int32_t)meas;  
 }
 
 static void storeLimits(void) {
@@ -392,7 +400,7 @@ static void storeLimits(void) {
 }
 
 static void factoryCalibrate(uint8_t which) {
-  uint32_t sensorReadings[3];
+  int32_t sensorReadings[3];
   uint32_t *pMeas;
   
   DebugUart_UartPutString("Got a factory calibrate message.\r\n");

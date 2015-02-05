@@ -184,6 +184,27 @@ void printU32(uint32_t val) {
   }
 }
 
+void printI32(int32_t val) {
+  uint8_t digits[10];
+  uint8_t i;
+
+  if (val < 0) {
+    DebugUart_SpiUartWriteTxData('-');
+    val = -val;
+  }
+
+  for (i=0; i<sizeof(digits); i++) {
+    digits[sizeof(digits)-i-1] = val % 10;
+    val = val / 10;
+  }
+
+  for(i=0; (i<(sizeof(digits)-1))&&(digits[i] == 0); i++);
+  
+  for (; i<sizeof(digits); i++) {
+    DebugUart_SpiUartWriteTxData(digits[i]+'0');
+  }
+}
+
 static void setup(const char* name, const char *UUID, const T_Serial* serial) {
   uint8_t i;
   Serial = serial;
