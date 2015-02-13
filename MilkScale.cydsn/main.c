@@ -140,6 +140,7 @@ static void hardwareSetup(void) {
   ADC_Start();
   ADC_StartConvert();  
   SampleStartDelay_Start();
+  UsbChipReset_Write(0);
   
   // load FSR limits here
   for (int j = 0; j < 3; j++) {
@@ -147,6 +148,49 @@ static void hardwareSetup(void) {
     HI_MEAS[j] = eeprom.calValues.HI_MEAS[j];
   }
   
+}
+
+static uint32_t keepAliveCheckTimer = 0;
+
+void operateUsbReset(void) {
+  uint32 ticksCopy;
+  static uint32 resetStartTicks=0;
+	
+	CyGlobalIntDisable;
+	ticksCopy = ticks;
+	CyGlobalIntEnable;
+  
+  // Anything received in 10 seconds?
+	if ((ticksCopy-keepAliveCheckTimer) >= 10000)
+	{
+    DebugUart_UartPutString("No chillhub message received, resetting USB.\r\n");
+    // no, reset the USB
+    UsbChipReset_Write(0);
+    // Start the reset pin timer
+    resetStartTicks = ticksCopy;
+  }
+		
+	if ((ticksCopy-resetStartTicks) >= 500)
+	{
+    DebugUart_UartPutString("USB reset complete.\r\n");
+    UsbChipReset_Write(1);
+  }
+  
+  if (UsbChipReset_Read() == 1) {
+    resetStartTicks = ticksCopy;
+  } else {
+    keepAliveCheckTimer = ticksCopy;
+  }
+}
+
+void keepaliveCallback(uint8_t dummy) {
+  (void)dummy;
+  
+  DebugUart_UartPutString("Keepalive message received from chillhub.\r\n");
+  
+	CyGlobalIntDisable;
+	keepAliveCheckTimer = ticks;
+	CyGlobalIntEnable;
 }
 
 void deviceAnnounce() { 
@@ -157,7 +201,10 @@ void deviceAnnounce() {
 
   // add a listener for device ID request type
   ChillHub.subscribe(deviceIdRequestType, (chillhubCallbackFunction)deviceAnnounce);
-  
+
+  // add a listener for keepalive from chillhub
+  ChillHub.subscribe(keepAliveType, (chillhubCallbackFunction)keepaliveCallback);
+
   // subscribe to door messages to trigger 
   ChillHub.subscribe(doorStatusMsgType, (chillhubCallbackFunction)readMilkWeight);
   
@@ -313,6 +360,7 @@ int main()
     
     checkForReset();
     periodicPrintOfWeight();
+    operateUsbReset();
   }
 }
 

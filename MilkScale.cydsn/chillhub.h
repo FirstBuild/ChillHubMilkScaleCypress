@@ -94,7 +94,8 @@ enum ChillHubMsgTypes {
   updateResourceType = 0x0a,
   resourceUpdatedType = 0x0b,
   setDeviceUUIDType = 0x0c,
-  // 0x0d-0x0F Reserved for Future Use
+  keepAliveType = 0x0d,
+  // 0x0e-0x0F Reserved for Future Use
   filterAlertMsgType = 0x10,
   waterFilterCalendarTimerMsgType = 0x11,
   waterFilterCalendarPercentUsedMsgType = 0x12,
