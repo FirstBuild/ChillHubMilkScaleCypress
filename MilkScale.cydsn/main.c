@@ -161,7 +161,7 @@ void operateUsbReset(void) {
 	CyGlobalIntEnable;
   
   // Anything received in 10 seconds?
-	if ((ticksCopy-keepAliveCheckTimer) >= 10000)
+	if ((ticksCopy-keepAliveCheckTimer) >= 20000)
 	{
     DebugUart_UartPutString("No chillhub message received, resetting USB.\r\n");
     // no, reset the USB
