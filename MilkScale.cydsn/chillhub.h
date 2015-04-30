@@ -16,7 +16,7 @@
 #define CHILLHUB_CB_TYPE_TIME 2
 #define CHILLHUB_CB_TYPE_CLOUD 3
 
-typedef void (*chillhubCallbackFunction)(uint32_t val);
+typedef void (*chillhubCallbackFunction)(uint8_t dataType, void *pData);
 
 void printU16(uint16_t val);
 void printI16(int16_t val);
@@ -38,11 +38,7 @@ typedef struct T_Serial {
     void (*print)(const char8 string[]);
 } T_Serial;
 
-typedef void (*chCbFcnU8)(unsigned char);
-typedef void (*chCbFcnU16)(unsigned int);
-typedef void (*chCbFcnU32)(unsigned long);
-typedef void (*chCbFcnTime)(unsigned char[4]);
-typedef void (*chCbFcnStr)(char *pStr);
+typedef void (*chCbFcnTime)(uint8_t dataType, unsigned char[4]);
   
 /*
  * Function prototypes

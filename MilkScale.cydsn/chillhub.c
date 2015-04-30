@@ -49,7 +49,7 @@ static chCbTableType callbackTable[MAX_CALLBACKS];
 /*
  * Private function prototypes
  */
-static void storeCallbackEntry(unsigned char id, unsigned char typ, void(*fcn)());
+static void storeCallbackEntry(unsigned char id, unsigned char typ, chillhubCallbackFunction fcn);
 static chillhubCallbackFunction callbackLookup(unsigned char sym, unsigned char typ);
 static uint8_t getIndexOfCallback(unsigned char sym, unsigned char typ);
 static uint8_t getUnusedIndexFromCallbackTable(void);
@@ -371,7 +371,9 @@ static void getTime(chillhubCallbackFunction cb) {
 }
 
 static void addCloudListener(unsigned char ID, chillhubCallbackFunction cb) {
-  DebugUart_UartPutString("Adding cloud listener.\r\n");
+  DebugUart_UartPutString("Adding cloud listener. ");
+  printU32((uint32_t)cb);
+  DebugUart_UartPutString("\r\n");
   
   storeCallbackEntry(ID, CHILLHUB_CB_TYPE_CLOUD, cb);
 }
@@ -487,7 +489,7 @@ static void processChillhubMessagePayload(void) {
         time[j] = recvBuf[bufIndex++];
       }
       DebugUart_UartPutString("Calling time response/alarm callback.\r\n");
-      ((chCbFcnTime)callback)(time); // <-- I don't think this works this way...
+      ((chCbFcnTime)callback)(dataType, time); // <-- I don't think this works this way...
 
       if (msgType == timeResponseMsgType) {
         callbackRemove(0, CHILLHUB_CB_TYPE_TIME);
@@ -503,65 +505,11 @@ static void processChillhubMessagePayload(void) {
     callback = callbackLookup(msgType, (msgType <= CHILLHUB_RESV_MSG_MAX)?CHILLHUB_CB_TYPE_FRIDGE:CHILLHUB_CB_TYPE_CLOUD);
 
     if (callback) {
+      printU32((uint32_t)callback);
+      DebugUart_UartPutString("\r\n");
       DebugUart_UartPutString("Found a callback for this message, calling...\r\n");
-      switch(dataType) {
-        case stringDataType:
-          DebugUart_UartPutString("Data type is a string.\r\n");
-          ((chCbFcnStr)callback)((char *)&recvBuf[bufIndex]);
-          break;
-        case unsigned8DataType:
-        case booleanDataType:
-          ((chCbFcnU8)callback)(recvBuf[bufIndex++]);
-          break;
-        case unsigned16DataType: {
-          unsigned int payload = 0;
-          DebugUart_UartPutString("Data type is a U16.\r\n");
-          payload |= (recvBuf[bufIndex++] << 8);
-          payload |= recvBuf[bufIndex++];
-          ((chCbFcnU16)callback)(payload);
-          break;
-        }
-        case unsigned32DataType: {
-          unsigned long payload = 0;
-          DebugUart_UartPutString("Data type is a U32.\r\n");
-          for (char j = 0; j < 4; j++) {
-            payload = payload << 8;
-            payload |= recvBuf[bufIndex++];
-          }
-          ((chCbFcnU32)callback)(payload);          
-          break;
-        }
-        default:
-          DebugUart_UartPutString("Don't know what this data type is: ");
-          printU8(dataType);
-          DebugUart_UartPutString("\r\n");
-      }
-      #ifdef KILL
-      if ((dataType == unsigned8DataType) || (dataType == booleanDataType)) {
-        DebugUart_UartPutString("Data type is U8 or bool.\r\n");
-        ((chCbFcnU8)callback)(recvBuf[bufIndex++]);
-      }
-      else if (dataType == unsigned16DataType) {
-        unsigned int payload = 0;
-        DebugUart_UartPutString("Data type is a U16.\r\n");
-        payload |= (recvBuf[bufIndex++] << 8);
-        payload |= recvBuf[bufIndex++];
-        ((chCbFcnU16)callback)(payload);
-      }
-      else if (dataType == unsigned32DataType) {
-        unsigned long payload = 0;
-        DebugUart_UartPutString("Data type is a U32.\r\n");
-        for (char j = 0; j < 4; j++) {
-          payload = payload << 8;
-          payload |= recvBuf[bufIndex++];
-        }
-        ((chCbFcnU32)callback)(payload);
-      } else {
-        DebugUart_UartPutString("Don't know what this data type is: ");
-        printU8(dataType);
-        DebugUart_UartPutString("\r\n");
-      }
-      #endif
+      callback(dataType, (void *)&recvBuf[bufIndex]);
+
     } else {
       DebugUart_UartPutString("No callback for this message found.\r\n");
     }
@@ -592,7 +540,7 @@ static void CheckPacket(void) {
   crc = crc_finalize(crc);
   
   if (crc == crcSent) {
-    DebugUart_UartPutString("Checksum checks!\r\n");
+    //DebugUart_UartPutString("Checksum checks!\r\n");
     processChillhubMessagePayload();
   } else {
     DebugUart_UartPutString("Checksum FAILED!\r\n");
@@ -611,7 +559,7 @@ static uint8_t StateHandler_WaitingForStx(void) {
   // process bytes in the buffer
   while(RingBuffer_IsEmpty(&packetBufCb) == RING_BUFFER_NOT_EMPTY) {
     if (RingBuffer_Read(&packetBufCb) == STX) {
-      DebugUart_UartPutString("Got STX.\r\n");
+      //DebugUart_UartPutString("Got STX.\r\n");
       return State_WaitingForLength;
     }
   }
@@ -638,10 +586,10 @@ static uint8_t StateHandler_WaitingForLength(void) {
       msgType = 0;
       dataType = 0;
       packetIndex = 0;
-      DebugUart_UartPutString("Got length!\r\n");
+      //DebugUart_UartPutString("Got length!\r\n");
       return State_WaitingForPacket;
     } else {
-      DebugUart_UartPutString("Length is too long, aborting.\r\n");
+      //DebugUart_UartPutString("Length is too long, aborting.\r\n");
       return State_WaitingForStx;
     }
   }
@@ -665,9 +613,9 @@ static uint8_t StateHandler_WaitingForPacket(void) {
     }
     b = RingBuffer_Peek(&packetBufCb, packetIndex++);
     recvBuf[bufIndex++] =  b;
-    DebugUart_UartPutString("Got a byte: ");
-    printU8(b);
-    DebugUart_UartPutString("\r\n");
+    //DebugUart_UartPutString("Got a byte: ");
+    //printU8(b);
+    //DebugUart_UartPutString("\r\n");
     if (bufIndex >= packetLen + 2) {
       CheckPacket();
       return State_WaitingForStx;

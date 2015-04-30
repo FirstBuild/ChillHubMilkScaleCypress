@@ -80,11 +80,11 @@ const char deviceType[] = "milkyWeighs";
 uint32_t W_MAX[3] = {15016, 30000, 14984};
 
 // Internal function prototypes
-static void readMilkWeight(unsigned char doorStatus);
+static void readMilkWeight(uint8_t dataType, void *pData);
 static void applyFsrCurve(int32_t *pScaledVal, int32_t *pRawValue);
 static void readFromSensors(int32_t *paMeas);
 static void storeLimits(void);
-static void factoryCalibrate(uint8_t full);
+static void factoryCalibrate(uint8_t dataType, void *pData);
 static int32_t getMilkWeight(void);
 static int32_t calculateMilkWeight(int32_t *pSensorReadings);
 static void checkForReset(void);
@@ -115,7 +115,9 @@ typedef enum cloudResorceId {
   calibrateID = 0x94
 } T_cloudResourceId;
 
-void setDeviceUUID(char *pUUID) {
+void setDeviceUUID(uint8_t dataType, void *pData) {
+  (void)dataType;
+  char *pUUID = (char*)pData;
   uint8_t len = (uint8_t)pUUID[0];
   char *pStr = &pUUID[1];
   
@@ -183,8 +185,9 @@ void operateUsbReset(void) {
   }
 }
 
-void keepaliveCallback(uint8_t dummy) {
-  (void)dummy;
+void keepaliveCallback(uint8_t dataType, void *pData) {
+  (void)dataType;
+  (void)pData;
   
   DebugUart_UartPutString("Keepalive message received from chillhub.\r\n");
   
@@ -193,30 +196,45 @@ void keepaliveCallback(uint8_t dummy) {
 	CyGlobalIntEnable;
 }
 
-void deviceAnnounce() { 
+void deviceAnnounce(uint8_t dataType, void *pData) { 
+  (void)dataType;
+  (void)pData;
+  
   DebugUart_UartPutString("\r\nRegistering with the chillhub.\r\n");
   
   // register the name (type) of this device with the chillhub
   ChillHub.setup(deviceType, eeprom.UUID, &uartInterface);
 
   // add a listener for device ID request type
-  ChillHub.subscribe(deviceIdRequestType, (chillhubCallbackFunction)deviceAnnounce);
+  ChillHub.subscribe(deviceIdRequestType, deviceAnnounce);
 
   // add a listener for keepalive from chillhub
-  ChillHub.subscribe(keepAliveType, (chillhubCallbackFunction)keepaliveCallback);
+  ChillHub.subscribe(keepAliveType, keepaliveCallback);
 
   // subscribe to door messages to trigger 
-  ChillHub.subscribe(doorStatusMsgType, (chillhubCallbackFunction)readMilkWeight);
+  ChillHub.subscribe(doorStatusMsgType, readMilkWeight);
   
   // setup factory calibration listener and create cloud resource
-  ChillHub.addCloudListener(calibrateID, (chillhubCallbackFunction)factoryCalibrate);
+  DebugUart_UartPutString("Address of factory calibrate: ");
+  printU32((uint32_t)&factoryCalibrate);
+  DebugUart_UartPutString("\r\n");
+  ChillHub.addCloudListener(calibrateID, &factoryCalibrate);
   ChillHub.createCloudResourceU16("calibrate", calibrateID, 1, 0);
+  
+  DebugUart_UartPutString("Address of checkForReset: ");
+  printU32(((uint32_t)(checkForReset)));
+  DebugUart_UartPutString("\r\n");
+
+  DebugUart_UartPutString("Size of void*: ");
+  printU32(sizeof(void*));
+  DebugUart_UartPutString("\r\n");
+
   
   // Create cloud resource for weight
   ChillHub.createCloudResourceU16("weight", weightID, FALSE, 0);
   
   // add a listener for setting the UUID of the device
-  ChillHub.subscribe(setDeviceUUIDType, (chillhubCallbackFunction)setDeviceUUID);
+  ChillHub.subscribe(setDeviceUUIDType, setDeviceUUID);
 
   DebugUart_UartPutString("Registration complete.\r\n");
 
@@ -348,7 +366,7 @@ int main()
   
   CyGlobalIntEnable; /* Uncomment this line to enable global interrupts. */
 
-	deviceAnnounce();
+	deviceAnnounce(42, NULL);
 	
 	DebugUart_UartPutString("\r\nMain program running...\r\n");
 	
@@ -364,7 +382,7 @@ int main()
   }
 }
 
-static int32 calculateMilkWeight(int32_t *pSensorReadings) {
+static int32_t calculateMilkWeight(int32_t *pSensorReadings) {
   int32_t sensorWeights[3];
 
   applyFsrCurve(sensorWeights, pSensorReadings);
@@ -400,7 +418,9 @@ static int32_t getMilkWeight(void) {
   return weight;
 }
 
-static void readMilkWeight(unsigned char doorStatus) {
+static void readMilkWeight(uint8_t dataType, void *pData) {
+  (void)dataType;
+  unsigned char doorStatus = *(uint32_t*)pData;
   uint8_t doorNowOpen = (doorStatus & 0x01);
   
   if (doorWasOpen && !doorNowOpen) {
@@ -447,9 +467,11 @@ static void storeLimits(void) {
     sizeof(T_CalValues));
 }
 
-static void factoryCalibrate(uint8_t which) {
+static void factoryCalibrate(uint8_t dataType, void *pData) {
+  (void)dataType;
   int32_t sensorReadings[3];
   uint32_t *pMeas;
+  uint32_t which = *(uint32_t*)pData;
   
   DebugUart_UartPutString("Got a factory calibrate message.\r\n");
   DebugUart_UartPutString("Value is: ");
@@ -468,7 +490,8 @@ static void factoryCalibrate(uint8_t which) {
       break;
     
     default:
-      // do nothing
+      // illegal value, reset to 0
+      ChillHub.updateCloudResourceU16(calibrateID, 0);
       return;
   }
   
