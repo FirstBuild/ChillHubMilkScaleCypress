@@ -499,16 +499,10 @@ static void processChillhubMessagePayload(void) {
     }
   }
   else {
-    DebugUart_UartPutString("Received a message: ");
-    printU8(msgType);
-    DebugUart_UartPutString("\r\n");
     callback = callbackLookup(msgType, (msgType <= CHILLHUB_RESV_MSG_MAX)?CHILLHUB_CB_TYPE_FRIDGE:CHILLHUB_CB_TYPE_CLOUD);
 
     if (callback) {
-      printU32((uint32_t)callback);
-      DebugUart_UartPutString("\r\n");
-      DebugUart_UartPutString("Found a callback for this message, calling...\r\n");
-      callback(dataType, (void *)&recvBuf[bufIndex]);
+      callback(dataType, &recvBuf[bufIndex]);
 
     } else {
       DebugUart_UartPutString("No callback for this message found.\r\n");

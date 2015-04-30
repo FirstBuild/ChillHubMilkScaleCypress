@@ -471,9 +471,23 @@ static void factoryCalibrate(uint8_t dataType, void *pData) {
   (void)dataType;
   int32_t sensorReadings[3];
   uint32_t *pMeas;
-  uint32_t which = *(uint32_t*)pData;
-  
+  uint8_t *pU8Data = pData;
+  uint32_t which=0;
+
   DebugUart_UartPutString("Got a factory calibrate message.\r\n");
+  
+  switch(dataType) {
+    case unsigned32DataType:
+      which = (pU8Data[0] << 24 ) +
+              (pU8Data[1] << 16 ) +
+              (pU8Data[2] << 8 ) +
+               pU8Data[3];
+      break;
+     default:
+        DebugUart_UartPutString("Did not receive a U32.\r\n");
+        break;
+  }
+    
   DebugUart_UartPutString("Value is: ");
   printU8(which);
   DebugUart_UartPutString("\r\n");
